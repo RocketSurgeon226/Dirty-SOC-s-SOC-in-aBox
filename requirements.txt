@@ -1,0 +1,7 @@
+# Python dependencies (add versions as you go)
+flask
+pyyaml
+inotify-simple
+scapy
+openai
+pytest
