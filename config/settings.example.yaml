@@ -1,56 +1,56 @@
-# Owner: Brady — Example settings; copy to config/settings.yaml (git-ignored).
+#Owner: Brady — Example settings; copy to config/settings.yaml (git-ignored).
 #
-#   cp config/settings.example.yaml config/settings.yaml
+# cp config/settings.example.yaml config/settings.yaml
 #
-# Every value below is also the built-in default in analysis/config.py, so you
-# only need to keep the lines you change. Secrets (the OpenAI API key) never go
-# in this file; set OPENAI_API_KEY in the environment or in .env instead.
+#Every value below is also the built-in default in analysis/config.py, so you
+#only need to keep the lines you change. Secrets (the OpenAI API key) never go
+#in this file; set OPENAI_API_KEY in the environment or in .env instead.
 
 paths:
-  eve_json: /var/log/suricata/eve.json        # Suricata alert stream we tail
-  database: data/soc_in_a_box.db              # SQLite: alert metadata + device inventory
+  eve_json: /var/log/suricata/eve.json #Suricata alert stream we tail
+  database: data/soc_in_a_box.db #SQLite: alert metadata + device inventory
   tracker_domains: threat_intel/tracker_domains.txt
 
 network:
-  # Networks we treat as "inside the home". Port scans from outside these
-  # ranges are reported as "from outside"; outbound volume is counted for
-  # traffic leaving them.
+  #Networks we treat as "inside the home". Port scans from outside these
+  #ranges are reported as "from outside"; outbound volume is counted for
+  #traffic leaving them.
   home_networks:
     - 192.168.0.0/16
     - 10.0.0.0/8
     - 172.16.0.0/12
-  capture_interface: eth1                     # USB Ethernet adapter on the SPAN port
+  capture_interface: eth1 #USB Ethernet adapter on the SPAN port
 
 dedup:
-  # Same device + same category within this window is shown as one card.
+  #Same device + same category within this window is shown as one card.
   window_minutes: 15
 
 detectors:
   tracker_dns:
-    # Alert when a device sends more than max_queries tracker-domain lookups
-    # within window_minutes. Revisit after the Week 7 seven-day baseline.
+    #Alert when a device sends more than max_queries tracker-domain lookups
+    #within window_minutes. Revisit after the Week 7 seven-day baseline.
     max_queries: 20
     window_minutes: 5
   outbound_volume:
-    # Alert when a device's outbound bytes exceed multiplier x its rolling
-    # baseline over baseline_window_minutes.
+    #Alert when a device's outbound bytes exceed multiplier x its rolling
+    #baseline over baseline_window_minutes.
     multiplier: 3.0
     baseline_window_minutes: 60
-    # Ignore devices sending less than this much, so a device that is
-    # usually silent doesn't alert on a few kilobytes.
+    #Ignore devices sending less than this much, so a device that is
+    #usually silent doesn't alert on a few kilobytes.
     min_bytes: 10000000
   new_device:
     enabled: true
 
 llm:
-  # Optional. Templates are always the fallback, so the system works with
-  # this turned off, with no internet, or with no API key.
+  #Optional. Templates are always the fallback, so the system works with
+  #this turned off, with no internet, or with no API key.
   enabled: false
   model: gpt-4o-mini
   timeout_seconds: 5
 
 retention:
-  # Alert metadata older than this is deleted.
+  #Alert metadata older than this is deleted.
   days: 30
 
 dashboard:
