@@ -228,7 +228,6 @@ class Alert:
             last_seen=_parse_dt(d["last_seen"]) if d.get("last_seen") else None,
         )
 
-
 @dataclass
 class AlertCard:
     """The four-part card the homeowner sees: device, severity, description, action."""
@@ -270,7 +269,6 @@ class AlertCard:
             llm_enhanced=d.get("llm_enhanced", False),
             acknowledged=d.get("acknowledged", False),
         )
-
 
 def _parse_dt(value: Any) -> datetime:
     """Parse an ISO timestamp (including Suricata's '+0000' offset form)."""
