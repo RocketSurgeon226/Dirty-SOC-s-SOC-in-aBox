@@ -26,7 +26,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SETTINGS_PATH = REPO_ROOT / "config" / "settings.yaml"
-SETTINGS_PATH_ENV = "SOC_SETTINGS"  # optional override for the settings file path
+SETTINGS_PATH_ENV = "SOC_SETTINGS"  #optional override for the settings file path
 API_KEY_ENV = "OPENAI_API_KEY"
 
 
@@ -95,7 +95,7 @@ class LlmSettings:
     enabled: bool = False
     model: str = "gpt-4o-mini"
     timeout_seconds: float = 5
-    api_key: Optional[str] = field(default=None, repr=False)  # from OPENAI_API_KEY only
+    api_key: Optional[str] = field(default=None, repr=False)  #from OPENAI_API_KEY only
 
     @property
     def usable(self) -> bool:
@@ -187,7 +187,7 @@ def _coerce(hint: Any, value: Any, where: str) -> Any:
         (item_type,) = get_args(hint)
         return [_coerce(item_type, v, f"{where}[{i}]") for i, v in enumerate(value)]
 
-    # bool is a subclass of int, so check it before the numeric cases.
+    #bool is a subclass of int, so check it before the numeric cases.
     if hint is bool:
         if not isinstance(value, bool):
             raise ConfigError(f"{where} must be true or false, got {value!r}")
