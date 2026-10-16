@@ -5,7 +5,7 @@ Usage:
     from analysis.translate.llm import make_reworder
     from analysis.translate.card_builder import build_card
 
-    reword = make_reworder(settings.llm)  # None if off, no API key, or no openai package
+    reword = make_reworder(settings.llm)  # None if off, no API key, or no anthropic package
     card = build_card(alert, device, reword=reword)
 
 The LLM only rewords the template text to read more naturally. It never sees
@@ -46,20 +46,31 @@ steps, numbers, product names, or technical terms. Do not use jargon like IP,
 DNS, port, packet, or protocol.
 Reply with only JSON: {"description": "...", "action": "..."}"""
 
+#Forces the reply into {"description": str, "action": str}
+ANSWER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "description": {"type": "string"},
+        "action": {"type": "string"},
+    },
+    "required": ["description", "action"],
+    "additionalProperties": False,
+}
+
 
 def make_reworder(settings: LlmSettings) -> Optional[Reworder]:
     """Build the reword hook for card_builder, or None if the LLM can't be used."""
     if not settings.usable:
         if settings.enabled:
-            log.warning("LLM is enabled but OPENAI_API_KEY isn't set; using templates only")
+            log.warning("LLM is enabled but ANTHROPIC_API_KEY isn't set; using templates only")
         return None
     try:
-        from openai import OpenAI
+        from anthropic import Anthropic
     except ImportError:
-        log.warning("LLM is enabled but the openai package isn't installed; using templates only")
+        log.warning("LLM is enabled but the anthropic package isn't installed; using templates only")
         return None
 
-    client = OpenAI(api_key=settings.api_key, timeout=settings.timeout_seconds, max_retries=0)
+    client = Anthropic(api_key=settings.api_key, timeout=settings.timeout_seconds, max_retries=0)
     return _LlmReworder(client, settings.model)
 
 
@@ -91,17 +102,23 @@ class _LlmReworder:
                 "action": action,
             }
         )
-        response = self.client.chat.completions.create(
+        response = self.client.beta.messages.create(
             model=self.model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.3,
-            max_tokens=200,
+            max_tokens=1024,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+            output_config={
+                "effort": "low",  #short rewording; no deep reasoning needed
+                "format": {"type": "json_schema", "schema": ANSWER_SCHEMA},
+            },
+            #if Claude declines, Anthropic retries on another model in the same call
+            betas=["server-side-fallback-2026-07-01"],
+            fallbacks="default",
         )
-        return _parse_answer(response.choices[0].message.content or "")
+        if response.stop_reason != "end_turn":  #refusal or cut off at max_tokens
+            return None
+        text = next((b.text for b in response.content if b.type == "text"), "")
+        return _parse_answer(text)
 
 
 def _parse_answer(content: str) -> Optional[tuple[str, str]]:

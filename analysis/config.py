@@ -10,7 +10,7 @@ Defaults live in the dataclasses below and match config/settings.example.yaml.
 config/settings.yaml only needs the values you want to change; anything left
 out keeps its default. If no settings file exists, the defaults are used.
 
-The OpenAI API key is read only from the OPENAI_API_KEY environment variable,
+The Claude API key is read only from the ANTHROPIC_API_KEY environment variable,
 never from YAML, so it can't be committed by accident.
 """
 
@@ -27,7 +27,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SETTINGS_PATH = REPO_ROOT / "config" / "settings.yaml"
 SETTINGS_PATH_ENV = "SOC_SETTINGS"  #optional override for the settings file path
-API_KEY_ENV = "OPENAI_API_KEY"
+API_KEY_ENV = "ANTHROPIC_API_KEY"
 
 
 class ConfigError(ValueError):
@@ -93,9 +93,9 @@ class DetectorSettings:
 @dataclass
 class LlmSettings:
     enabled: bool = False
-    model: str = "gpt-4o-mini"
-    timeout_seconds: float = 5
-    api_key: Optional[str] = field(default=None, repr=False)  #from OPENAI_API_KEY only
+    model: str = "claude-opus-5-5"
+    timeout_seconds: float = 10
+    api_key: Optional[str] = field(default=None, repr=False)  #from ANTHROPIC_API_KEY only
 
     @property
     def usable(self) -> bool:

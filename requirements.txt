@@ -3,5 +3,5 @@ flask
 pyyaml
 inotify-simple
 scapy
-openai
+anthropic
 pytest

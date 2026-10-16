@@ -3,8 +3,8 @@
 # cp config/settings.example.yaml config/settings.yaml
 #
 #Every value below is also the built-in default in analysis/config.py, so you
-#only need to keep the lines you change. Secrets (the OpenAI API key) never go
-#in this file; set OPENAI_API_KEY in the environment or in .env instead.
+#only need to keep the lines you change. Secrets (the Claude API key) never go
+#in this file; set ANTHROPIC_API_KEY in the environment instead.
 
 paths:
   eve_json: /var/log/suricata/eve.json #Suricata alert stream we tail
@@ -46,8 +46,8 @@ llm:
   #Optional. Templates are always the fallback, so the system works with
   #this turned off, with no internet, or with no API key.
   enabled: false
-  model: gpt-4o-mini
-  timeout_seconds: 5
+  model: claude-opus-5-5 #claude-haiku-5-5 is much cheaper
+  timeout_seconds: 10
 
 retention:
   #Alert metadata older than this is deleted.
