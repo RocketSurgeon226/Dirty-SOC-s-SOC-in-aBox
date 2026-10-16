@@ -184,8 +184,12 @@ class Alert:
 
     @property
     def device_key(self) -> Optional[str]:
-        """Best identifier for the affected device: MAC if known, else source IP."""
-        return self.device_mac or self.src_ip
+        """Best identifier for the affected device: MAC if known, else its home IP.
+
+        src_ip is only the last resort: on inbound traffic it's the outside
+        host, so keying on it would merge alerts for different home devices.
+        """
+        return self.device_mac or self.details.get("home_ip") or self.src_ip
 
     @property
     def dedup_key(self) -> tuple[Optional[str], Category]:
