@@ -1,1 +1,14 @@
 <!-- Owner: Aron — Device inventory with friendly names. -->
+{% extends "base.html" %}
+{% block title %}Devices · SOC-In-a-Box{% endblock %}
+{% block page %}devices{% endblock %}
+{% block main %}
+<main class="page-narrow">
+  <h1>Devices on your network</h1>
+  <p class="lead">Give each device a name you'll recognize, so alerts say "Kid's Xbox" instead of a string of numbers.</p>
+  <div id="notice" class="notice" hidden></div>
+  <div id="flash" class="flash" hidden></div>
+  <div id="device-rows"></div>
+  <p class="muted small" id="no-devices" hidden>No devices seen yet.</p>
+</main>
+{% endblock %}

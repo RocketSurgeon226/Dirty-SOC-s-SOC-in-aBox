@@ -1,1 +1,27 @@
-<!-- Owner: Aron — Home: health score + alert cards. -->
+{% extends "base.html" %}
+{% block page %}alerts{% endblock %}
+{% block main %}
+<!-- Owner: Aron — Alerts page: alert cards, network health score, device summary. -->
+<main class="layout">
+  <section>
+    <h1>What's happening on your network</h1>
+    <div id="notice" class="notice" hidden></div>
+    <div id="flash" class="flash" hidden></div>
+    <div class="alert-list" id="alert-list"></div>
+  </section>
+
+  <aside class="col-side">
+    <div class="panel health-panel">
+      <span class="health-grade" id="grade">–</span>
+      <p class="muted small" id="grade-note">Waiting for data</p>
+      <div class="trend" id="trend" role="img" hidden></div>
+    </div>
+    <div class="panel">
+      <h2>Devices on your network</h2>
+      <ul class="device-list" id="device-list"></ul>
+      <p class="muted small" id="no-devices" hidden>No devices seen yet.</p>
+      <p class="small"><a class="link" href="{{ url_for('devices') }}">Manage devices</a></p>
+    </div>
+  </aside>
+</main>
+{% endblock %}

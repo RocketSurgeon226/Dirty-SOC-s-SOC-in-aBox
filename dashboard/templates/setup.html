@@ -1,1 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Set up · SOC-In-a-Box{% endblock %}
+{% block page %}setup{% endblock %}
+{% block main %}
 <!-- Owner: Aron — First-connect device-labeling flow. -->
+<main class="page-narrow">
+  <h1>Name your devices</h1>
+  <p class="lead">New devices show up here the first time they join your network. A name makes every alert about them easy to understand.</p>
+  <div id="notice" class="notice" hidden></div>
+  <div id="flash" class="flash" hidden></div>
+  <div id="setup-list"></div>
+</main>
+{% endblock %}
