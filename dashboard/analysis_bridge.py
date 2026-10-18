@@ -89,24 +89,38 @@ def start():
     pass
 
 
+HISTORY_DAYS = 30  # how far back the History page lists handled ("Got it") cards
+
+
 def get_cards():
-    """Current alert cards, newest first. Acknowledged ("Got it") cards are left out.
-    The device name is looked up fresh, so a name given in the dashboard shows up on
-    cards that were created before the device had one."""
+    """Current alert cards, newest first. Acknowledged ("Got it") cards are left out;
+    they're on the History page (get_handled_cards)."""
     db = _db()
-    cards = []
-    for card in db.list_cards(limit=50, include_acknowledged=False):
-        data = card.to_dict()
-        alert = db.get_alert(card.alert_id)
-        if alert is not None:
-            device = db.find_device(mac=alert.device_mac,
-                                    ip=alert.details.get("home_ip") or alert.src_ip)
-            if device is not None:
-                data["mac"] = device.mac
-                if device.friendly_name:
-                    data["device_name"] = device.friendly_name
-        cards.append(data)
-    return cards
+    return [_card_data(db, card) for card in db.list_cards(limit=50, include_acknowledged=False)]
+
+
+def get_handled_cards():
+    """Cards the household pressed "Got it" on in the last HISTORY_DAYS days, newest first."""
+    from datetime import timedelta
+    from analysis.models import utcnow
+    db = _db()
+    recent = db.list_cards(limit=500, since=utcnow() - timedelta(days=HISTORY_DAYS))
+    return [_card_data(db, card) for card in recent if card.acknowledged]
+
+
+def _card_data(db, card):
+    """The card as a dict. The device name is looked up fresh, so a name given in the
+    dashboard shows up on cards that were created before the device had one."""
+    data = card.to_dict()
+    alert = db.get_alert(card.alert_id)
+    if alert is not None:
+        device = db.find_device(mac=alert.device_mac,
+                                ip=alert.details.get("home_ip") or alert.src_ip)
+        if device is not None:
+            data["mac"] = device.mac
+            if device.friendly_name:
+                data["device_name"] = device.friendly_name
+    return data
 
 
 def get_devices():
@@ -143,6 +157,13 @@ def acknowledge_card(alert_id):
     """The household pressed "Got it" on a card. Returns False if there's no such card."""
     ok = _db().acknowledge(alert_id)
     _health_cache["value"] = None  # an acknowledged card stops counting against the score
+    return ok
+
+
+def unacknowledge_card(alert_id):
+    """The household pressed "Not fixed yet" on a handled card. Returns False if there's no such card."""
+    ok = _db().acknowledge(alert_id, acknowledged=False)
+    _health_cache["value"] = None  # it counts against the score again
     return ok
 
 
@@ -244,6 +265,7 @@ def normalize_card(raw, index, now):
         "description": str(description),
         "action": str(_first(raw, ("action", "next_step", "recommended_action", "suggestion")) or ""),
         "timestamp": _timestamp(_first(raw, ("timestamp", "time", "ts", "last_seen")), now).isoformat(),
+        "acknowledged": bool(raw.get("acknowledged", False)),
     }
 
 
@@ -266,6 +288,8 @@ def normalize_device(raw, index):
         "icon": _icon(_first(raw, ("icon", "device_icon")), "device-unknown"),
         "named": bool(named),
         "skipped": bool(raw.get("skipped", False)),
+        "vendor": str(raw["vendor"]) if raw.get("vendor") else None,
+        "hostname": str(raw["hostname"]) if raw.get("hostname") else None,
     }
 
 
@@ -313,6 +337,12 @@ def _load_list(hook, name, normalizer) -> Dict[str, Any]:
 
 def load_cards():
     r = _load_list(get_cards, "get_cards", normalize_card)
+    r["cards"] = r.pop("items")
+    return r
+
+
+def load_handled():
+    r = _load_list(get_handled_cards, "get_handled_cards", normalize_card)
     r["cards"] = r.pop("items")
     return r
 

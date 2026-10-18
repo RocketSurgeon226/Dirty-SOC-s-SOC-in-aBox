@@ -8,9 +8,10 @@ Run it (from the repo root):
 
 Then open http://localhost:8080  (the host and port come from config/settings.yaml when it loads).
 
-Pages:   /  (alerts)      /devices  (every device, rename)      /setup  (name new devices)
+Pages:   /  (home)   /devices  (every device, rename)   /history  (handled alerts)   /setup  (name new devices)
 API:     GET /api/state (everything)    GET /api/alerts   GET /api/devices   GET /api/health
-         POST /api/devices/<mac>/name   POST /api/devices/<mac>/skip   POST /api/cards/<id>/ack
+         POST /api/devices/<mac>/name   POST /api/devices/<mac>/skip
+         POST /api/cards/<id>/ack ("Got it")   POST /api/cards/<id>/unack ("Not fixed yet")
 """
 
 import argparse
@@ -46,6 +47,11 @@ def index():
 @app.get("/devices")
 def devices():
     return render_template("devices.html")
+
+
+@app.get("/history")
+def history():
+    return render_template("history.html")
 
 
 @app.get("/setup")
@@ -100,14 +106,23 @@ def api_skip_device(mac):
 @app.post("/api/cards/<alert_id>/ack")
 def api_acknowledge(alert_id):
     """The household pressed "Got it" on a card."""
-    if not alert_id.replace("-", "").replace("_", "").isalnum() or len(alert_id) > 64:
+    return set_acknowledged(alert_id, True)
+
+
+@app.post("/api/cards/<alert_id>/unack")
+def api_unacknowledge(alert_id):
+    """The household pressed "Not fixed yet" on a handled card (or Undo after "Got it")."""
+    return set_acknowledged(alert_id, False)
+
+
+def set_acknowledged(alert_id, acknowledged):
+    # Basic-alert ids look like "aa:bb:cc:00:00:02-port_scan", so ":" is allowed.
+    if not alert_id.replace("-", "").replace("_", "").replace(":", "").isalnum() or len(alert_id) > 64:
         return jsonify({"error": "not found"}), 404
     try:
-        ok = bridge.acknowledge_card(alert_id)
-    except NotImplementedError:
-        return jsonify({"error": "Acknowledging isn't connected"}), 501
+        ok = state.set_acknowledged(alert_id, acknowledged, app.config["DEMO"], app.config["EVE_PATH"])
     except Exception as e:
-        print("acknowledge_card failed: %s" % e)
+        print("set_acknowledged failed: %s" % e)
         return jsonify({"error": "Couldn't save that"}), 500
     return jsonify({"ok": bool(ok)}), (200 if ok else 404)
 

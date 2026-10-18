@@ -37,6 +37,7 @@ def reset_bridge():
 @pytest.fixture
 def demo(tmp_path, monkeypatch):
     monkeypatch.setattr(state, "NAMES_PATH", str(tmp_path / "names.json"))
+    monkeypatch.setattr(state, "ACKS_PATH", str(tmp_path / "acks.json"))
     monkeypatch.setitem(dashboard_app.app.config, "DEMO", True)
     return dashboard_app.app.test_client()
 
@@ -53,6 +54,7 @@ def connected(tmp_path, monkeypatch):
     settings.write_text("paths:\n  database: %s\n" % (tmp_path / "soc.db"))
     monkeypatch.setenv("SOC_SETTINGS", str(settings))
     monkeypatch.setattr(state, "NAMES_PATH", str(tmp_path / "names.json"))
+    monkeypatch.setattr(state, "ACKS_PATH", str(tmp_path / "acks.json"))
     monkeypatch.setitem(dashboard_app.app.config, "DEMO", False)
     monkeypatch.setitem(dashboard_app.app.config, "EVE_PATH", str(tmp_path / "no-eve.json"))
     reset_bridge()
@@ -90,13 +92,18 @@ def test_pages_render(demo, path, page):
     assert "/static/js/app.js" in html and "/static/css/dashboard.css" in html
 
 
+def test_history_page_renders(demo):
+    r = demo.get("/history")
+    assert r.status_code == 200 and 'data-page="history"' in r.get_data(as_text=True)
+
+
 def test_static_files_are_served(demo):
     assert demo.get("/static/js/app.js").status_code == 200
     assert demo.get("/static/css/dashboard.css").status_code == 200
 
 
 def test_pages_need_no_internet(demo):
-    for path in ("/", "/devices", "/setup"):
+    for path in ("/", "/devices", "/setup", "/history"):
         assert "https://" not in demo.get(path).get_data(as_text=True)
 
 
@@ -145,10 +152,51 @@ def test_skipping_keeps_the_device_unnamed(demo):
 def test_ack_ids_are_checked(demo):
     assert demo.post("/api/cards/bad%20id/ack").status_code == 404
     assert demo.post("/api/cards/" + "a" * 65 + "/ack").status_code == 404
+    assert demo.post("/api/cards/not-a-card/ack").status_code == 404
+    assert demo.post("/api/cards/not-a-card/unack").status_code == 404
+
+
+def test_got_it_and_undo_on_basic_alerts(demo):
+    before = demo.get("/api/state").get_json()
+    card = before["alerts"][0]
+    assert demo.post("/api/cards/%s/ack" % card["id"]).status_code == 200
+    s = demo.get("/api/state").get_json()
+    assert card["id"] not in [a["id"] for a in s["alerts"]]
+    assert [a["id"] for a in s["handled"]] == [card["id"]]
+    assert demo.get("/api/health").get_json()["score"] > before["health"]["score"]
+
+    assert demo.post("/api/cards/%s/unack" % card["id"]).status_code == 200   # "Not fixed yet"
+    s = demo.get("/api/state").get_json()
+    assert card["id"] in [a["id"] for a in s["alerts"]] and s["handled"] == []
+    assert s["health"]["score"] == before["health"]["score"]
+
+
+def test_history_keeps_a_copy_of_basic_alerts(demo, monkeypatch):
+    card = demo.get("/api/state").get_json()["alerts"][0]
+    demo.post("/api/cards/%s/ack" % card["id"])
+    monkeypatch.setattr(state, "demo_events", lambda: [])   # the alert has aged out of eve.json
+    s = demo.get("/api/state").get_json()
+    assert [a["description"] for a in s["handled"]] == [card["description"]]
+    assert demo.post("/api/cards/%s/unack" % card["id"]).status_code == 200
+    assert demo.get("/api/state").get_json()["handled"] == []
+
+
+def test_a_repeat_after_got_it_comes_back_and_can_be_handled_again(demo, monkeypatch):
+    card = demo.get("/api/state").get_json()["alerts"][0]
+    demo.post("/api/cards/%s/ack" % card["id"])
+    later = state.datetime.now(state.timezone.utc)   # the same alert happens again, after "Got it"
+    events = state.demo_events()
+    for e in events:
+        e["timestamp"] = later.strftime("%Y-%m-%dT%H:%M:%S.%f+0000")
+    monkeypatch.setattr(state, "demo_events", lambda: events)
+    assert card["id"] in [a["id"] for a in demo.get("/api/state").get_json()["alerts"]]
+    assert demo.post("/api/cards/%s/ack" % card["id"]).status_code == 200
+    assert card["id"] not in [a["id"] for a in demo.get("/api/state").get_json()["alerts"]]
 
 
 def test_without_the_analysis_service_basic_alerts_are_used(tmp_path, monkeypatch):
     monkeypatch.setattr(state, "NAMES_PATH", str(tmp_path / "names.json"))
+    monkeypatch.setattr(state, "ACKS_PATH", str(tmp_path / "acks.json"))
     monkeypatch.setitem(dashboard_app.app.config, "DEMO", False)
     monkeypatch.setitem(dashboard_app.app.config, "EVE_PATH", str(tmp_path / "missing.json"))
     monkeypatch.setattr(bridge, "get_cards", lambda: (_ for _ in ()).throw(NotImplementedError))
@@ -157,7 +205,7 @@ def test_without_the_analysis_service_basic_alerts_are_used(tmp_path, monkeypatc
     monkeypatch.setattr(state, "get_neighbors", lambda: [])
     s = dashboard_app.app.test_client().get("/api/state").get_json()
     assert s["alert_source"] == "suricata" and s["analysis"]["error"] is None
-    assert s["eve_readable"] is False and s["can_acknowledge"] is False
+    assert s["eve_readable"] is False and s["can_acknowledge"] is True   # "Got it" works on basic alerts too
 
 
 # --- Connected to Brady's analysis service -----------------------------------------
@@ -191,7 +239,19 @@ def test_got_it_acknowledges_and_raises_the_score(connected):
     s = client.get("/api/state").get_json()
     assert all(a["id"] != ids["bad"] for a in s["alerts"])
     assert s["health"]["score"] == 90
+    assert [a["id"] for a in s["handled"]] == [ids["bad"]]
     assert client.post("/api/cards/does-not-exist/ack").status_code == 404
+
+
+def test_not_fixed_yet_brings_a_card_back(connected):
+    client, db, ids = connected
+    client.post("/api/cards/%s/ack" % ids["bad"])
+    r = client.post("/api/cards/%s/unack" % ids["bad"])
+    assert r.status_code == 200 and r.get_json() == {"ok": True}
+    s = client.get("/api/state").get_json()
+    assert ids["bad"] in [a["id"] for a in s["alerts"]] and s["handled"] == []
+    assert s["health"]["score"] == 65
+    assert client.post("/api/cards/does-not-exist/unack").status_code == 404
 
 
 def test_a_broken_service_falls_back_with_a_message(connected, monkeypatch):

@@ -1,27 +1,52 @@
 {% extends "base.html" %}
 {% block page %}alerts{% endblock %}
 {% block main %}
-<!-- Owner: Aron — Alerts page: alert cards, network health score, device summary. -->
-<main class="layout">
-  <section>
-    <h1>What's happening on your network</h1>
-    <div id="notice" class="notice" hidden></div>
-    <div id="flash" class="flash" hidden></div>
-    <div class="alert-list" id="alert-list"></div>
+<!-- Owner: Aron — Home page: one plain status sentence, then only the cards that need the household. -->
+<main class="home">
+  <div id="notice" class="notice" hidden></div>
+  <div id="flash" class="flash" hidden></div>
+
+  <section class="hero" id="summary">
+    <span class="hero-icon" id="hero-icon"></span>
+    <div>
+      <h1 class="hero-headline" id="headline">Checking your network…</h1>
+      <p class="hero-sub" id="headline-sub"></p>
+    </div>
   </section>
 
-  <aside class="col-side">
-    <div class="panel health-panel">
-      <span class="health-grade" id="grade">–</span>
-      <p class="muted small" id="grade-note">Waiting for data</p>
+  <div class="home-grid">
+  <section>
+    <div class="alert-list" id="alert-list"></div>
+    <div id="minor"></div>
+  </section>
+
+  <aside class="panel grade-box">
+    <div class="grade-letter" id="grade">–</div>
+    <div class="grade-info">
+      <h2>Network health grade</h2>
+      <p class="muted small" id="grade-note"></p>
       <div class="trend" id="trend" role="img" hidden></div>
+      <p class="trend-caption muted" id="trend-caption" hidden>Last 7 days</p>
     </div>
-    <div class="panel">
-      <h2>Devices on your network</h2>
-      <ul class="device-list" id="device-list"></ul>
-      <p class="muted small" id="no-devices" hidden>No devices seen yet.</p>
-      <p class="small"><a class="link" href="{{ url_for('devices') }}">Manage devices</a></p>
-    </div>
+    <details class="more grade-help">
+      <summary>How does grading work?</summary>
+      <p>Your network starts with 100 points. Each alert from the last 24 hours takes some away:</p>
+      <ul>
+        <li><strong>Act now:</strong> 25 points</li>
+        <li><strong>Worth checking:</strong> 10 points</li>
+        <li><strong>Just so you know:</strong> 3 points</li>
+      </ul>
+      <p>The points come back when you press “Got it” on an alert, or once it's more than a day old.
+        If you change your mind, find it on the History page and choose “Not fixed yet”.</p>
+      <p class="grade-scale">
+        <span><b class="grade-chip grade-green">A</b> 90 or more</span>
+        <span><b class="grade-chip grade-green">B</b> 80 to 89</span>
+        <span><b class="grade-chip grade-yellow">C</b> 70 to 79</span>
+        <span><b class="grade-chip grade-red">D</b> 60 to 69</span>
+        <span><b class="grade-chip grade-red">F</b> below 60</span>
+      </p>
+    </details>
   </aside>
+  </div>
 </main>
 {% endblock %}

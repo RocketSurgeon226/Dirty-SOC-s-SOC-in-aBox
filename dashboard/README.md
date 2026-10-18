@@ -17,7 +17,7 @@ pip install -r requirements.txt
 python3 dashboard/app.py --demo        # fake data, works on any computer
 ```
 
-Open http://localhost:8080. The pill at the top right says "Demo data".
+Open http://localhost:8080. The pill at the top right says "Demo mode".
 
 On the Pi, with Brady's service running:
 
@@ -36,9 +36,11 @@ and `--eve` override them. Check the connection to the analysis service any time
 |---|---|
 | `app.py` | The Flask app: three pages, the JSON API, and the command line |
 | `dashboard_state.py` | Builds what the pages show, and saves names. Falls back to basic alerts from `eve.json` if the analysis service isn't there |
+| `vendors.py` | Guesses a device's maker from its MAC address, using nmap's or the IEEE maker list if the Pi has one (`sudo apt install nmap`) |
 | `analysis_bridge.py` | The only file that talks to Brady's code (`analysis/storage/db.py`, `analysis/health_score.py`) |
 | `templates/index.html` | Alerts page: cards, health score and trend, device summary |
 | `templates/devices.html` | Every device, with rename |
+| `templates/history.html` | History: alerts marked as handled in the last 30 days, with "Not fixed yet" |
 | `templates/setup.html` | First-connect flow: name the devices that are new |
 | `templates/base.html` | Shared top bar and navigation |
 | `static/js/app.js` | Draws all three pages and runs the naming form |
@@ -49,7 +51,8 @@ and `--eve` override them. Check the connection to the analysis service any time
 
 `GET /api/state` (everything), `/api/alerts`, `/api/devices`, `/api/health`.
 `POST /api/devices/<mac>/name` with `{"name": "Kid's Xbox", "icon": "device-tv"}`,
-`POST /api/devices/<mac>/skip`, `POST /api/cards/<id>/ack` ("Got it").
+`POST /api/devices/<mac>/skip`, `POST /api/cards/<id>/ack` ("Got it"),
+`POST /api/cards/<id>/unack` ("Not fixed yet" / Undo).
 
 ## How it connects to Brady's service
 
@@ -68,6 +71,8 @@ score from it, and writes two things back: a device's name and "Got it" on a car
 - The dashboard saves the icon you pick for a device in `dashboard/device_names.json`.
   It holds device names and MAC addresses, so keep it out of git:
   add `dashboard/device_names.json` and `__pycache__/` to `.gitignore`.
+- Without the analysis service, "Got it" on a basic alert is saved in `dashboard/acknowledged.json`
+  (also git-ignored). The alert comes back by itself if it happens again after that.
 - The health score is Brady's 0-100 number with a Good/Fair/At risk label. The proposal says
   A+ to F letter grades. The team should pick one (the dashboard shows whichever it's given).
 - There is no login. The server listens on `dashboard.host` from the settings (0.0.0.0 by

@@ -8,3 +8,4 @@ eve.json
 tests/pcaps/*.pcap
 .env
 dashboard/device_names.json
+dashboard/acknowledged.json

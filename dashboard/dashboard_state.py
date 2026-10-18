@@ -19,12 +19,16 @@ import threading
 from datetime import datetime, timedelta, timezone
 
 import analysis_bridge as bridge
+import vendors
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NAMES_PATH = os.path.join(HERE, "device_names.json")
+ACKS_PATH = os.path.join(HERE, "acknowledged.json")  # "Got it" on basic alerts: id -> {"at", "card"}
 LOCK = threading.Lock()
 
 WINDOW = timedelta(hours=24)  # how far back built-in alerts are shown
+HISTORY_WINDOW = timedelta(days=bridge.HISTORY_DAYS)  # how long handled alerts stay on the History page
+DEMO_START = datetime.now(timezone.utc)  # demo alerts keep fixed times, so "Got it" sticks
 MAX_NAME_LEN = 40
 ALLOWED_ICONS = {
     "device-unknown", "device-tv", "device-gamepad-2", "device-mobile",
@@ -32,21 +36,23 @@ ALLOWED_ICONS = {
 }
 
 # category -> (severity, what happened, next step)   [built-in fallback only]
+# The next steps match analysis/translate/templates.py, so the dashboard's
+# "How do I do that?" help (static/js/app.js) fits either source.
 TEMPLATES = {
     "malicious_contact": (
         "high",
         "This device contacted a known bad server.",
-        "Consider disconnecting it and checking for unfamiliar apps.",
+        "Disconnect this device from your network, then run a virus scan and update its software.",
     ),
     "plaintext_credentials": (
         "high",
         "A device on your network sent a password in an unprotected way.",
-        "Avoid that site or app on this network until it offers a secure connection.",
+        "Change that password, and only sign in to sites that show a padlock in the address bar.",
     ),
     "port_scan": (
         "medium",
         "Someone or something scanned your network from outside.",
-        "No action needed yet. We'll keep watching for repeats.",
+        "Make sure your router's software is up to date and its remote management is turned off.",
     ),
     "other": (
         "low",
@@ -55,7 +61,7 @@ TEMPLATES = {
     ),
 }
 SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
-SEVERITY_PENALTY = {"high": 20, "medium": 8, "low": 2}
+SEVERITY_PENALTY = {"high": 25, "medium": 10, "low": 3}  # same as analysis/health_score.py
 
 parse_ts = bridge.parse_ts
 
@@ -127,7 +133,8 @@ def builtin_alerts(events, devices, now):
             "mac": dev["mac"] if dev else None,
             "device_name": dev["name"] if dev else "Your network",
             "device_icon": dev["icon"] if dev else "router",
-            "description": what if g["count"] == 1 else "%s (seen %d times)" % (what, g["count"]),
+            "description": what,
+            "count": g["count"],
             "action": action,
             "timestamp": g["latest"].isoformat(),
         })
@@ -167,6 +174,33 @@ def save_names(names):
         os.replace(tmp, NAMES_PATH)
 
 
+def load_acks():
+    with LOCK:
+        try:
+            with open(ACKS_PATH) as f:
+                acks = json.load(f)
+        except (OSError, ValueError):
+            return {}
+    # Early versions saved just the time.
+    return {k: (v if isinstance(v, dict) else {"at": v}) for k, v in acks.items()}
+
+
+def save_acks(acks):
+    cutoff = datetime.now(timezone.utc) - HISTORY_WINDOW
+    acks = {k: v for k, v in acks.items() if (parse_ts(v.get("at")) or cutoff) > cutoff}
+    with LOCK:
+        tmp = ACKS_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(acks, f, indent=2)
+        os.replace(tmp, ACKS_PATH)
+
+
+def _acked_since(entry, card):
+    """True if "Got it" was pressed on this basic alert after it last happened."""
+    at = parse_ts((entry or {}).get("at"))
+    return at is not None and at >= datetime.fromisoformat(card["timestamp"])
+
+
 def apply_local_names(devices, names, keep_named=False):
     """Names saved in the dashboard win over the built-in sources. With keep_named=True
     (the analysis service owns names) they only fill in icons, and names for devices
@@ -191,7 +225,17 @@ def builtin_devices(neighbors):
         else:
             name, icon, named = "Unrecognized device", "device-unknown", False
         devices.append({"mac": n["mac"], "ip": n["ip"], "name": name, "icon": icon,
-                        "named": named, "skipped": False})
+                        "named": named, "skipped": False, "vendor": n.get("vendor"), "hostname": None})
+    return devices
+
+
+def add_device_hints(devices):
+    """Clues that help a household recognize a device: who made it, and whether it uses
+    a private (randomized) address, as phones and laptops do."""
+    for d in devices:
+        d["vendor"] = d.get("vendor") or vendors.vendor_for(d["mac"])
+        d["private_address"] = vendors.is_private(d["mac"])
+        d.setdefault("hostname", None)
     return devices
 
 
@@ -199,15 +243,15 @@ def builtin_devices(neighbors):
 
 def demo_neighbors():
     return [
-        {"mac": "aa:bb:cc:00:00:01", "ip": "192.168.1.1", "default_name": "Router", "default_icon": "router"},
-        {"mac": "aa:bb:cc:00:00:02", "ip": "192.168.1.23", "default_name": "Kitchen smart speaker", "default_icon": "speaker"},
-        {"mac": "aa:bb:cc:00:00:03", "ip": "192.168.1.31", "default_name": "Living room TV", "default_icon": "device-tv"},
-        {"mac": "aa:bb:cc:00:00:04", "ip": "192.168.1.47"},  # unnamed -> triggers first-connect flow
+        {"mac": "aa:bb:cc:00:00:01", "ip": "192.168.1.1", "default_name": "Router", "default_icon": "router", "vendor": "TP-Link"},
+        {"mac": "aa:bb:cc:00:00:02", "ip": "192.168.1.23", "default_name": "Kitchen smart speaker", "default_icon": "speaker", "vendor": "Amazon"},
+        {"mac": "aa:bb:cc:00:00:03", "ip": "192.168.1.31", "default_name": "Living room TV", "default_icon": "device-tv", "vendor": "Samsung"},
+        {"mac": "aa:bb:cc:00:00:04", "ip": "192.168.1.47", "vendor": "Nintendo"},  # unnamed -> triggers first-connect flow
     ]
 
 
 def demo_events():
-    now = datetime.now(timezone.utc)
+    now = DEMO_START
 
     def ev(minutes_ago, src, dest, signature):
         ts = (now - timedelta(minutes=minutes_ago)).strftime("%Y-%m-%dT%H:%M:%S.%f+0000")
@@ -256,18 +300,28 @@ def build_state(demo, eve_path):
     else:
         devices = builtin_devices(demo_neighbors() if demo else get_neighbors())
     devices = apply_local_names(devices, names, keep_named=devices_from_service)
+    add_device_hints(devices)
 
     # Alerts: analysis service cards if connected, otherwise built from eve.json.
+    # "handled" is the History page: cards the household pressed "Got it" on.
     eve_ok = True
     if cards_res["status"] == "ok":
         alerts, alert_source = cards_res["cards"], "analysis"
+        handled_res = bridge.load_handled()
+        handled = handled_res["cards"] if handled_res["status"] == "ok" else []
     else:
         events = demo_events() if demo else read_eve(eve_path)
         eve_ok = events is not None
         alerts, alert_source = builtin_alerts(events or [], devices, now), "suricata"
+        # Basic alerts only cover the last 24 hours of eve.json, so History shows the copy
+        # saved when "Got it" was pressed. An alert that happens again after that comes back.
+        acks = load_acks()
+        alerts = [a for a in alerts if not _acked_since(acks.get(a["id"]), a)]
+        handled = [dict(e["card"]) for e in acks.values() if e.get("card")]
+    handled = [a for a in handled if now - datetime.fromisoformat(a["timestamp"]) <= HISTORY_WINDOW]
 
     # Names given in the dashboard show up on cards that carry the device's MAC.
-    for a in alerts:
+    for a in alerts + handled:
         entry = names.get(a.get("mac") or "")
         if entry and entry.get("name") and not entry.get("skipped"):
             if alert_source != "analysis" or a["device_name"].lower().startswith("unrecognized"):
@@ -276,21 +330,25 @@ def build_state(demo, eve_path):
 
     alerts.sort(key=lambda a: (SEVERITY_RANK[a["severity"]],
                                -datetime.fromisoformat(a["timestamp"]).timestamp()))
+    handled.sort(key=lambda a: -datetime.fromisoformat(a["timestamp"]).timestamp())
 
     if health_res["status"] == "ok":
         health = health_res["health"]
     else:
         score = max(0, 100 - sum(SEVERITY_PENALTY[a["severity"]] for a in alerts))
-        health = {"grade": grade_for(score), "note": "Based on the last 24 hours"}
+        health = {"score": score, "note": "Based on the last 24 hours"}
+    if health.get("score") is not None and not health.get("grade"):
+        health["grade"] = grade_for(health["score"])  # the dashboard shows a letter grade either way
 
     return {
         "source": "demo" if demo else "pi",
         "alert_source": alert_source,
-        "can_acknowledge": alert_source == "analysis",
+        "can_acknowledge": True,
         "eve_readable": True if demo else eve_ok,
         "analysis": {"status": status, "error": ("; ".join(errors)[:300] or None)},
         "generated_at": now.isoformat(),
         "alerts": alerts,
+        "handled": handled,
         "devices": devices,
         "health": health,
     }
@@ -322,6 +380,25 @@ def set_device_name(mac, name, icon):
     except Exception as e:
         print("on_device_named failed: %s" % e)
     return names[mac], None
+
+
+def set_acknowledged(alert_id, acknowledged, demo, eve_path):
+    """"Got it" (acknowledged=True) or "Not fixed yet" (False) on a card.
+    Returns False if there's no such card."""
+    if not demo and bridge.load_cards()["status"] == "ok":
+        if acknowledged:
+            return bool(bridge.acknowledge_card(alert_id))
+        return bool(bridge.unacknowledge_card(alert_id))
+    acks = load_acks()
+    if acknowledged:
+        card = next((a for a in build_state(demo, eve_path)["alerts"] if a["id"] == alert_id), None)
+        if card is None:
+            return alert_id in acks  # already handled (e.g. a double click), or no such card
+        acks[alert_id] = {"at": datetime.now(timezone.utc).isoformat(), "card": card}
+    elif acks.pop(alert_id, None) is None:
+        return False
+    save_acks(acks)
+    return True
 
 
 def skip_device(mac):
