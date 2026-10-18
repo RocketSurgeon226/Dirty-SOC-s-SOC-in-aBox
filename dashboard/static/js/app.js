@@ -96,6 +96,9 @@ var ICON_SHAPES = {
   "router": [["rect", { x: 4, y: 14, width: 16, height: 6, rx: 2 }], ["path", { d: "M8 17v.01M12 17v.01" }],
              ["path", { d: "M12 14V9" }], ["path", { d: "M9 7a4.2 4.2 0 0 1 6 0" }]],
   "arrow-right": [["path", { d: "M5 12h14M13 6l6 6-6 6" }]],
+  "moon": [["path", { d: "M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" }]],
+  "sun": [["circle", { cx: 12, cy: 12, r: 4 }],
+          ["path", { d: "M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" }]],
   "smile": [["path", { d: "M8.5 9v.01M15.5 9v.01" }], ["path", { d: "M6.5 13.5a6 6 0 0 0 11 0" }]],
   "alert": [["path", { d: "M12 7v6" }], ["path", { d: "M12 17v.01" }]]
 };
@@ -574,6 +577,30 @@ function render() {
   else if (PAGE === "setup") renderSetupPage();
   else renderAlertsPage();
 }
+
+//Dark mode
+
+//The button shows what it switches to. base.html applies the saved choice before the page draws.
+function renderThemeToggle() {
+  var btn = byId("theme-toggle");
+  if (!btn) return;
+  var dark = document.documentElement.getAttribute("data-theme") === "dark";
+  btn.textContent = "";
+  btn.appendChild(icon(dark ? "sun" : "moon"));
+  btn.appendChild(el("span", "", dark ? "Light mode" : "Dark mode"));
+  btn.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+}
+
+var themeBtn = byId("theme-toggle");
+if (themeBtn) {
+  themeBtn.addEventListener("click", function () {
+    var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("theme", next); } catch (e) {}   //private windows can refuse; it still switches
+    renderThemeToggle();
+  });
+}
+renderThemeToggle();
 
 // ---- Talking to the server ----------------------------------------------------------
 

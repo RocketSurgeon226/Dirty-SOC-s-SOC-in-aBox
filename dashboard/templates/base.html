@@ -6,6 +6,17 @@
   <title>{% block title %}SOC-In-a-Box{% endblock %}</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%231b2430%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z%22/><path d=%22M9 12l2 2 4-4%22/></svg>">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    //Light or dark before the page draws data
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem("theme"); } catch (e) {}
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      document.documentElement.setAttribute("data-theme", t);
+    })();
+  </script>
 </head>
 <body data-page="{% block page %}alerts{% endblock %}">
 
@@ -22,6 +33,7 @@
     </nav>
     <span class="tagline"></span>
     <span class="pill" id="status"><span class="dot"></span><span id="status-text">Connecting…</span></span>
+    <button class="theme-toggle" id="theme-toggle" type="button"></button>
   </div>
 </header>
 
