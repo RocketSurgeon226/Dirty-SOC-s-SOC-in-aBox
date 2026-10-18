@@ -116,7 +116,6 @@ def api_unacknowledge(alert_id):
 
 
 def set_acknowledged(alert_id, acknowledged):
-    # Basic-alert ids look like "aa:bb:cc:00:00:02-port_scan", so ":" is allowed.
     if not alert_id.replace("-", "").replace("_", "").replace(":", "").isalnum() or len(alert_id) > 64:
         return jsonify({"error": "not found"}), 404
     try:

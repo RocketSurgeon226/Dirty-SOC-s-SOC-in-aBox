@@ -393,7 +393,7 @@ def set_acknowledged(alert_id, acknowledged, demo, eve_path):
     if acknowledged:
         card = next((a for a in build_state(demo, eve_path)["alerts"] if a["id"] == alert_id), None)
         if card is None:
-            return alert_id in acks  # already handled (e.g. a double click), or no such card
+            return alert_id in acks  #already handled (e.g. a double click), or no such card
         acks[alert_id] = {"at": datetime.now(timezone.utc).isoformat(), "card": card}
     elif acks.pop(alert_id, None) is None:
         return False

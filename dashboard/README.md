@@ -14,7 +14,7 @@ python3 -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-python3 dashboard/app.py --demo        # fake data, works on any computer
+python3 dashboard/app.py --demo        #fake data, works on any computer
 ```
 
 Open http://localhost:8080. The pill at the top right says "Demo mode".
