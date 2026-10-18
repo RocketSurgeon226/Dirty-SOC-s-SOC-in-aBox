@@ -50,9 +50,8 @@ for _p in (HERE, REPO_ROOT, os.path.join(REPO_ROOT, "analysis")):
         sys.path.append(_p)  # append, so we never shadow Python's own modules
 
 
-# =============================================================================
+
 # CONNECTION TO BRADY'S ANALYSIS SERVICE
-# =============================================================================
 
 _settings_cache: Dict[str, Any] = {}
 _db_cache: Dict[str, Any] = {}
