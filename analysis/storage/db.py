@@ -13,15 +13,10 @@ Usage:
     db.find_device(mac=..., ip=...)              # for the card's device name
     db.purge_older_than(settings.retention.days)
 
-One SQLite file shared by the analysis service (writer) and the dashboard
-(reader). WAL mode lets the dashboard read while the service writes.
-
-Only metadata is stored: alerts arrive here already redacted, and there is no
-column for payloads. Retention deletes old alerts and cards; the device
-inventory is kept, since new-device detection needs to remember what it has
-seen.
-
-Timestamps are stored as UTC ISO strings so they sort and compare as text.
+One SQLite file: the analysis service writes, the dashboard reads (WAL mode
+allows both at once). Alerts arrive redacted and there's no payload column.
+Retention purges alerts and cards but keeps devices, since new-device detection
+needs that history. Timestamps are UTC ISO strings so they sort as text.
 """
 
 from __future__ import annotations
@@ -115,7 +110,6 @@ class Database:
     # --- alerts and cards -------------------------------------------------
 
     def save_alert(self, alert: Alert) -> None:
-        """Insert or replace an alert."""
         d = alert.to_dict()
         d["timestamp"] = _ts(alert.timestamp)
         d["last_seen"] = _ts(alert.last_seen or alert.timestamp)
@@ -131,7 +125,7 @@ class Database:
         return Alert.from_dict(d)
 
     def save_card(self, card: AlertCard) -> None:
-        """Insert or update a card. An update never clears `acknowledged`."""
+        """An update never clears `acknowledged`."""
         d = card.to_dict()
         d["timestamp"] = _ts(card.timestamp)
         d["llm_enhanced"] = int(card.llm_enhanced)
@@ -190,7 +184,7 @@ class Database:
     # --- devices ----------------------------------------------------------
 
     def upsert_device(self, device: Device) -> None:
-        """Insert or update a device. An update never clears its friendly name or first_seen."""
+        """An update never clears friendly_name or moves first_seen later."""
         d = device.to_dict()
         d["first_seen"] = _ts(device.first_seen)
         d["last_seen"] = _ts(device.last_seen)

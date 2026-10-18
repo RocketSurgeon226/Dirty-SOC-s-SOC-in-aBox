@@ -9,21 +9,17 @@ Usage:
     for event in follow(settings.paths.eve_json):
         event["event_type"]  # -> "alert", "dns", "flow", ...
 
-follow() runs forever (or until `stop` is set), yielding each new line of
-eve.json as a dict. It handles the things a long-running tail has to survive:
+follow() runs until `stop` is set and survives:
 
-  - the file not existing yet (Suricata hasn't started): waits for it
-  - log rotation (file renamed and recreated): finishes the old file, then
-    switches to the new one
-  - truncation (copytruncate rotation): starts again from the top
+  - file not existing yet: waits for it
+  - rotation (rename + recreate): finishes the old file, then switches
+  - truncation (copytruncate): restarts from the top
   - half-written lines: buffered until the newline arrives
-  - malformed JSON: logged and skipped, never fatal
+  - malformed JSON: logged and skipped
 
-inotify is Linux-only. On other platforms (macOS dev machines) or if
-inotify_simple isn't installed, it falls back to polling.
+Falls back to polling where inotify isn't available (macOS, or no inotify_simple).
 
-read_events() reads a file once from start to end, for tests and replaying
-captured logs such as tests/fixtures/sample_eve.json.
+read_events() reads a file once, for tests and replays.
 """
 
 from __future__ import annotations
@@ -69,10 +65,9 @@ def follow(
 ) -> Iterator[dict[str, Any]]:
     """Yield events as Suricata appends them to `path`.
 
-    By default it starts at the end of the file so a restart doesn't replay
-    old alerts; pass from_start=True to process what's already there first.
-    `event_types` limits output to e.g. {"alert", "dns", "flow"}.
-    Setting the `stop` event makes the generator return within poll_interval.
+    Starts at the end of the file so a restart doesn't replay old alerts,
+    unless from_start=True. `event_types` filters, e.g. {"alert", "flow"}.
+    Returns within poll_interval of `stop` being set.
     """
     path = Path(path)
     waiter = _Waiter(path.parent, poll_interval)
@@ -173,10 +168,9 @@ def _warn_partial(buffer: bytes, path: Path) -> None:
 
 
 class _Waiter:
-    """Blocks until the eve.json directory changes, or until the poll interval passes.
+    """Blocks until the eve.json directory changes or poll_interval passes.
 
-    Watching the directory (not the file) means we also hear about the file
-    being created, renamed, or replaced during rotation.
+    Watches the directory, not the file, to catch creation and rotation.
     """
 
     def __init__(self, directory: Path, poll_interval: float) -> None:

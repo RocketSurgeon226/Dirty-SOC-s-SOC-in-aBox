@@ -123,7 +123,6 @@ class Pipeline:
         return produced
 
     def handle_alert(self, alert: Alert) -> None:
-        """Redact, score, dedup, and store one alert from any detector."""
         redact_alert(alert)  # first, so nothing downstream ever holds a credential
         assign_severity(alert)
         alert, is_new = self.dedup.add(alert)

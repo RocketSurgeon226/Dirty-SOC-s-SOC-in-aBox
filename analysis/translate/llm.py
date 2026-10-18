@@ -8,16 +8,13 @@ Usage:
     reword = make_reworder(settings.llm)  # None if off, no API key, or no anthropic package
     card = build_card(alert, device, reword=reword)
 
-The LLM only rewords the template text to read more naturally. It never sees
-IPs, MACs, hostnames, device names, or anything else from the traffic: just
-the category, the template's description and action, and how many times it
-happened. So a homeowner's network details never leave the Pi.
+The LLM only sees the category, template text, and repeat count; never IPs,
+MACs, hostnames, or device names, so network details never leave the Pi.
 
-Every failure returns None, which makes card_builder keep the template:
-timeouts, network errors, bad JSON, answers that are empty or too long. After
-a failure the LLM is skipped for a few minutes, so a dead internet connection
-doesn't add a timeout to every alert. Answers are passed through
-redact_text() before use, just in case.
+Any failure (timeout, network error, bad JSON, empty or overlong answer)
+returns None and the template is kept. After a failure the LLM is skipped for
+COOLDOWN_SECONDS so a dead connection doesn't add a timeout to every alert.
+Answers are run through redact_text() just in case.
 """
 
 from __future__ import annotations

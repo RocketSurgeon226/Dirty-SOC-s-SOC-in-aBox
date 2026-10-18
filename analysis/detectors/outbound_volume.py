@@ -10,22 +10,14 @@ Usage:
     #Or feed byte counts directly (handy in tests):
     alert = detector.add_bytes("192.168.1.20", 5_000_000, when)
 
-How it decides, per home device:
+Per home device, outbound bytes go into one-minute buckets. Alert when the
+last RECENT_MINUTES total is > multiplier x the average same-length total over
+the baseline window before it, AND >= min_bytes (so 3x almost nothing from a
+quiet device doesn't alert). No alerts until a device has a full baseline
+window of history.
 
-  - Bytes the device sends out to the internet are counted into one-minute buckets.
-  - "Recent" is the last 5 minutes of buckets.
-  - The baseline is the average 5-minute amount over the baseline window
-    (60 minutes by default) before that.
-  - Alert when recent > multiplier x baseline AND recent >= min_bytes.
-
-A device needs a full baseline window of history before it can alert, so the
-first hour after startup (or after a device first appears) is quiet. min_bytes
-keeps a usually-silent device from alerting on a few kilobytes, since 3x
-almost nothing is still almost nothing.
-
-Bytes come from Suricata flow records, which are written when a flow ends, so
-a long upload lands all at once at its end. That's fine for "sending far more
-than usual", and dedup.py keeps a sustained burst to a single card.
+Flow records are written when a flow ends, so a long upload lands all at once;
+fine for "far more than usual", and dedup keeps a sustained burst to one card.
 """
 
 from __future__ import annotations

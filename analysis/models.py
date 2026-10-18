@@ -1,15 +1,9 @@
 """Owner: Brady — Shared data classes: Alert, AlertCard, Device, Severity.
 
-Data flows through the analysis service in this order:
+eve.json / Python detector -> Alert (normalized detection) -> AlertCard
+(plain-language card for the dashboard). Device maps a MAC/IP to a friendly name.
 
-    Suricata eve.json / Python detector
-        -> Alert       (normalized detection, one of the six categories)
-        -> AlertCard   (four-part plain-language card for the dashboard)
-
-Device is the inventory entry that turns a MAC/IP into a friendly name.
-
-Everything here is plain stdlib so the dashboard, storage, and tests can import
-it without pulling in Suricata, scapy, or the LLM client.
+Stdlib only, so the dashboard, storage, and tests can import it cheaply.
 """
 
 from __future__ import annotations
@@ -89,8 +83,6 @@ class Category(str, Enum):
 
 
 class AlertSource(str, Enum):
-    """Where a detection came from."""
-
     SURICATA = "suricata"
     PYTHON = "python"
 
@@ -149,11 +141,10 @@ class Device:
 
 @dataclass
 class Alert:
-    """A normalized detection in one of the six categories, before translation.
+    """A normalized detection, before translation.
 
-    Only metadata is kept: never put raw payloads or credentials in `details`.
-    `severity` is None until severity.py assigns it; `count` grows when dedup.py
-    folds repeats into this alert.
+    Metadata only: never put payloads or credentials in `details`. `severity`
+    is None until severity.py sets it; `count` grows as dedup folds in repeats.
     """
 
     category: Category
@@ -184,10 +175,8 @@ class Alert:
 
     @property
     def device_key(self) -> Optional[str]:
-        """Best identifier for the affected device: MAC if known, else its home IP.
-
-        src_ip is only the last resort: on inbound traffic it's the outside
-        host, so keying on it would merge alerts for different home devices.
+        """MAC if known, else home IP. src_ip is a last resort: on inbound
+        traffic it's the outside host, which would merge different devices.
         """
         return self.device_mac or self.details.get("home_ip") or self.src_ip
 
@@ -197,7 +186,6 @@ class Alert:
         return (self.device_key, self.category)
 
     def merge(self, other: Alert) -> None:
-        """Fold a repeat alert into this one."""
         self.count += other.count
         if other.last_seen and (self.last_seen is None or other.last_seen > self.last_seen):
             self.last_seen = other.last_seen

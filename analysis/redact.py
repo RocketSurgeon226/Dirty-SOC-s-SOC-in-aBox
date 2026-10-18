@@ -7,15 +7,14 @@ Usage:
     redact_alert(alert)       # scrubs alert.details in place
     redact_text(description)  # scrub any string, e.g. before it goes to the LLM
 
-categorize.py already avoids copying payloads, but the Python detectors and
-future code can put anything in `details`, so every alert passes through here
-before it is deduped, stored, shown, or sent anywhere. Three layers:
+Every alert passes through here before dedup, storage, display, or the LLM,
+since any detector can put anything in `details`. Three layers:
 
-  1. Keys that can only hold raw traffic (payload, request body, ...) are dropped.
-  2. Keys named like a secret (password, token, cookie, ...) keep the key but
-     the value becomes "[REDACTED]", so the card can still say a password was sent.
-  3. Every remaining string is scanned for credentials in the text itself:
-     "Authorization: Basic ...", "Bearer ...", "password=...", "user:pass@host".
+  1. DROP_KEYS (raw traffic) are removed.
+  2. Secret-named keys keep the key but the value becomes "[REDACTED]", so the
+     card can still say a password was sent.
+  3. Remaining strings are scanned for inline credentials (Authorization
+     headers, Bearer tokens, password=..., user:pass@host).
 """
 
 from __future__ import annotations
@@ -90,10 +89,8 @@ _TEXT_PATTERNS = [
 
 
 def redact_alert(alert: Alert) -> Alert:
-    """Scrub credentials from alert.details in place and return the alert.
-
-    The signature is left alone: it's the rule's message, written by us or
-    Emerging Threats, never traffic.
+    """Scrub alert.details in place. The signature is a rule message, not
+    traffic, so it's left alone.
     """
     alert.details = redact_value(alert.details)
     return alert

@@ -8,17 +8,10 @@ Usage:
     health_score(cards)        # -> HealthScore(score=75, label="Fair", color="yellow")
     health_trend(cards, days=7)  # -> [(date, score), ...] oldest first
 
-The score starts at 100 and loses points for each alert card from the last
-24 hours, by severity:
-
-    high -25   medium -10   low -3        (never below 0)
-
-A card counts once no matter how many repeats dedup folded into it, so one
-noisy device can't sink the score on its own. Cards the homeowner has
-acknowledged don't count: dealing with an alert should raise the score.
-
-Labels: 80-100 "Good" (green), 50-79 "Fair" (yellow), 0-49 "At risk" (red),
-the same traffic-light colors as the cards.
+Starts at 100 and loses PENALTY points per unacknowledged card from the last
+24 hours (floor 0). A card counts once however many repeats dedup folded into
+it, so one noisy device can't sink the score alone; acknowledging a card
+raises the score back.
 """
 
 from __future__ import annotations
@@ -50,7 +43,7 @@ class HealthScore:
 
 
 def health_score(cards: Iterable[AlertCard], now: Optional[datetime] = None) -> HealthScore:
-    """Score the network from cards seen in the 24 hours up to `now`."""
+    """Score from cards in the 24 hours up to `now`."""
     now = now or utcnow()
     counted = {s: 0 for s in Severity}
     for card in cards:
@@ -75,8 +68,8 @@ def health_trend(
 ) -> list[tuple[date, int]]:
     """Score at the end of each of the last `days` days (UTC), oldest first.
 
-    Today's entry is the score right now. Acknowledged cards are skipped for
-    past days too, since we don't record when they were acknowledged.
+    Today's entry is the current score. Acknowledged cards are skipped for past
+    days too, since we don't record when they were acknowledged.
     """
     now = now or utcnow()
     cards = list(cards)
@@ -90,7 +83,6 @@ def health_trend(
 
 
 def label_for(score: int) -> tuple[str, str]:
-    """Return (label, color) for a score."""
     for floor, label, color in LABELS:
         if score >= floor:
             return label, color

@@ -10,13 +10,12 @@ Usage:
     #is_new=False -> `alert` is the earlier alert, with count and last_seen
     #                updated: refresh that card instead of adding another
 
-Two alerts are repeats when they share Alert.dedup_key (device + category) and
-the new one arrives within window_minutes of the last time that alert was
-seen. The window slides: a port scan that keeps going stays one card with a
-growing count instead of a fresh card every 15 minutes.
+Alerts are repeats when they share Alert.dedup_key and arrive within
+window_minutes of that alert's last_seen. The window slides, so an ongoing
+port scan stays one card with a growing count.
 
-Times are the alerts' own timestamps (from eve.json), not the wall clock, so
-replaying an old log dedups the same way it did live.
+Uses the alerts' own eve.json timestamps, not the wall clock, so replaying an
+old log dedups the same way it did live.
 """
 
 from __future__ import annotations
@@ -29,8 +28,6 @@ from analysis.models import Alert, Category
 
 
 class Deduplicator:
-    """Remembers recent alerts and folds repeats into them."""
-
     def __init__(self, window_minutes: float) -> None:
         if window_minutes <= 0:
             raise ValueError("window_minutes must be greater than 0")

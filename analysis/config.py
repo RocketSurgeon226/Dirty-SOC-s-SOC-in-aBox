@@ -6,12 +6,11 @@ Usage:
     settings = load_settings()
     settings.detectors.tracker_dns.max_queries  # -> 20
 
-Defaults live in the dataclasses below and match config/settings.example.yaml.
-config/settings.yaml only needs the values you want to change; anything left
-out keeps its default. If no settings file exists, the defaults are used.
+Defaults live in the dataclasses below (matching config/settings.example.yaml);
+settings.yaml only needs overrides, and may be absent.
 
-The Claude API key is read only from the ANTHROPIC_API_KEY environment variable,
-never from YAML, so it can't be committed by accident.
+The API key comes only from $ANTHROPIC_API_KEY, never YAML, so it can't be
+committed by accident.
 """
 
 from __future__ import annotations
@@ -128,9 +127,8 @@ class Settings:
 def load_settings(path: Optional[Union[str, Path]] = None) -> Settings:
     """Load settings from YAML on top of the defaults.
 
-    Path order: the `path` argument, then $SOC_SETTINGS, then
-    config/settings.yaml. A missing file at the default location just means
-    "use defaults"; a missing file that was asked for explicitly is an error.
+    Path order: `path`, $SOC_SETTINGS, config/settings.yaml. Only an explicitly
+    requested file is an error if missing.
     """
     explicit = path or os.environ.get(SETTINGS_PATH_ENV)
     settings_path = Path(explicit) if explicit else DEFAULT_SETTINGS_PATH

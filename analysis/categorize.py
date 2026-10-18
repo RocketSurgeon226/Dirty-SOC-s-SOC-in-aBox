@@ -5,21 +5,12 @@ Usage:
     from analysis.categorize import categorize
     alert = categorize(event, settings.network)  # -> Alert, or None
 
-Only Suricata `alert` events are handled here, and only three categories come
-from Suricata rules:
+Only Suricata `alert` events produce malicious_contact, plaintext_credentials,
+and port_scan; the other three categories come from the Python detectors.
+Alerts that fit no category (ET INFO, ET POLICY, ...) are dropped as noise.
 
-    malicious_contact      ET threat-intel / malware rules, URLhaus rules
-    plaintext_credentials  our SOCBOX plaintext rules (sid 9000001-9000002)
-    port_scan              ET SCAN rules, our SOCBOX port scan rules
-
-The other three (new_device, tracker_dns, outbound_volume) are built by the
-Python detectors from dns / flow / dhcp events, so they never come out of
-here. Any alert that doesn't fit a category (ET INFO, ET POLICY, ...) returns
-None and is dropped; showing a homeowner "ET POLICY curl User-Agent" would just
-be noise.
-
-Only metadata is copied into the Alert. Payloads, URLs, and HTTP bodies are
-never read, since the plaintext credential rules fire on exactly those.
+Only metadata is copied. Payloads, URLs, and HTTP bodies are never read, since
+the plaintext credential rules fire on exactly those.
 """
 
 from __future__ import annotations
@@ -74,8 +65,7 @@ _HOSTNAME_FIELDS = (("http", "hostname"), ("tls", "sni"), ("dns", "rrname"))
 def categorize(event: dict[str, Any], network: Optional[NetworkSettings] = None) -> Optional[Alert]:
     """Turn one eve.json event into an Alert, or None if it isn't one of ours.
 
-    `network` decides which side of the connection is the home device; without
-    it the source is assumed to be the home side.
+    `network` picks which side is the home device; without it, the source is.
     """
     if event.get("event_type") != "alert":
         return None

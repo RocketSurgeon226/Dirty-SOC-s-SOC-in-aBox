@@ -7,10 +7,9 @@ Usage:
     t.description  # -> "Someone or something scanned your network from outside."
     t.action       # -> "Make sure your router's software is up to date ..."
 
-The descriptions match the alert category table in README.md. Each action is
-one thing a homeowner with no security background can do right now. The text
-never includes IPs, ports, or hostnames from the traffic, so it is always the
-same reviewed wording, and the usability tests measure exactly what ships.
+Descriptions match the category table in README.md; each action is one thing a
+non-technical homeowner can do right now. No traffic details (IPs, ports,
+hostnames) are filled in, so the usability tests measure exactly what ships.
 """
 
 from __future__ import annotations
@@ -55,5 +54,4 @@ TEMPLATES: dict[Category, Template] = {
 
 
 def template_for(category: Category) -> Template:
-    """Look up the fixed wording for a category."""
     return TEMPLATES[Category(category)]

@@ -5,17 +5,10 @@ Usage:
     from analysis.translate.card_builder import build_card
     card = build_card(alert, device)  # device from the inventory, or None
 
-The four parts:
-
-    device name   Device.display_name, or "Unrecognized device" if unknown/unnamed
-    severity      alert.severity (from severity.py; looked up if still unset)
-    description   template text for the category
-    action        template text for the category
-
-`reword` is the hook for the optional LLM (translate/llm.py). It gets the alert
-and the template text and returns new (description, action), or None to keep
-the template. Any error, empty answer, or missing hook means the template is
-used, so a card is always produced.
+Description and action come from the category's template. `reword` is the
+optional LLM hook (translate/llm.py): it gets the alert and template text and
+returns a new (description, action), or None to keep the template. Any error
+or empty answer also keeps the template, so a card is always produced.
 """
 
 from __future__ import annotations
@@ -35,7 +28,6 @@ Reworder = Callable[[Alert, str, str], Optional[tuple[str, str]]]
 def build_card(
     alert: Alert, device: Optional[Device] = None, reword: Optional[Reworder] = None
 ) -> AlertCard:
-    """Turn an alert into the card the homeowner sees."""
     template = template_for(alert.category)
     description, action = template.description, template.action
     llm_enhanced = False
