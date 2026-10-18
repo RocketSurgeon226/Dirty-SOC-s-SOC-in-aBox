@@ -318,7 +318,7 @@
 
 
 
-
+# Builds Suricata 8.0.7 from source with Lua enabled (needed by plaintext_creds.lua) 
 set -euo pipefall
 
 require_root() {

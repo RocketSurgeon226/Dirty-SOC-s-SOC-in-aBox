@@ -1,1 +1,16 @@
 # Owner: Adam — Custom rules for port scan detection (thresholds, Nmap-style scans).
+# SID block 9100000-9100999. The source is "any" so scans from the internet and from a
+# compromised device inside the home are both caught. Tune the count/seconds values after
+# the seven-day clean-traffic baseline.
+
+alert tcp any any -> $HOME_NET any (msg:"SOCBOX Port scan - TCP SYN sweep"; flow:stateless; flags:S,12; threshold:type both, track by_src, count 30, seconds 10; classtype:attempted-recon; sid:9100001; rev:1;)
+
+alert tcp any any -> $HOME_NET any (msg:"SOCBOX Port scan - TCP FIN scan"; flow:stateless; flags:F,12; threshold:type both, track by_src, count 10, seconds 10; classtype:attempted-recon; sid:9100002; rev:1;)
+
+alert tcp any any -> $HOME_NET any (msg:"SOCBOX Port scan - TCP NULL scan"; flow:stateless; flags:0; threshold:type both, track by_src, count 10, seconds 10; classtype:attempted-recon; sid:9100003; rev:1;)
+
+alert tcp any any -> $HOME_NET any (msg:"SOCBOX Port scan - TCP Xmas scan"; flow:stateless; flags:FPU,12; threshold:type both, track by_src, count 10, seconds 10; classtype:attempted-recon; sid:9100004; rev:1;)
+
+alert icmp any any -> $HOME_NET any (msg:"SOCBOX Port scan - ICMP ping sweep"; itype:8; threshold:type both, track by_src, count 20, seconds 10; classtype:attempted-recon; sid:9100005; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"SOCBOX Port scan - Nmap scripting engine probe"; flow:established,to_server; http.user_agent; content:"Nmap Scripting Engine"; classtype:attempted-recon; sid:9100006; rev:1;)

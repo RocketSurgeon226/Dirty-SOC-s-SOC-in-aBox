@@ -1,1 +1,151 @@
 # Owner: Adam — Suricata config: capture interface, af-packet (SPAN) or nfqueue (inline), eve.json output.
+
+# Run modes (script picks one based on startup config)
+#   SPAN:     sudo suricata -c /etc/suricata/suricata.yaml --af-packet=eth1
+#   Inline:   sudo suricata -c /etc/suricata/suricata.yaml -q 0
+
+vars:
+  address-groups:
+    HOME_NET: "[192.168.0.0/16,10.0.0.0/8,172.16.0.0/12]"
+    EXTERNAL_NET: "!$HOME_NET"
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DC_SERVER: "$HOME_NET"
+    DNP3_SERVERS: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    GENEVE_PORTS: 6081
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+
+default-log-dir: /var/log/suricata
+pid-file: /var/run/suricata.pid
+
+# Capture interfaces for SPAN mode. Change eth1 to USB adapter's real name
+af-packet:
+  - interface: eth1
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-nmap: yes
+    tpacket-v3: yes
+
+# Inline mode: packets are accepted by default and queue fails open if it backs up
+nfq:
+  mode: accept
+  fail-open: yes
+
+stream:
+  inline: auto
+
+# ET Open comes from suricata-update; SOC-in-a-Box rules are copied to /etc/suricata/rules
+default-rule-path: /etc/suricata/rules
+rule-files:
+  - /var/lib/suricata/rules/suricata.rules
+  - port_scan.rules
+  - plaintext_creds.rules
+
+classification-files: /etc/suricata/classification.config
+reference-config-file: /etc/suricata/reference.config
+threshold-file: /etc/suricata/threshold.config
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        # No payloads, packets or HTTP bodies are logged, so credentials never reach eve.json
+        - alert:
+            payload: no
+            payload-printable: no
+            packet: no
+            metadata: no
+            http-body: no
+            http-body-printable: no
+        - dns:
+            version: 2
+        - flow
+  - stats:
+      enabled: yes
+      filename: stats.log
+      append: yes
+      totals: yes
+      threads: no
+
+stats:
+  enabled: yes
+  interval: 8
+
+app-layer:
+  protocols:
+    http:
+      enabled: yes
+      libhtp:
+        default-config:
+          personality: IDS
+          request-body-limit: 100kb
+          response-body-limit: 100kb
+    tls:
+      enabled: yes
+    dns:
+      enabled: yes
+    ssh:
+      enabled: yes
+    ftp:
+      enabled: yes
+    smtp:
+      enabled: yes
+    imap:
+      enabled: yes
+    smb:
+      enabled: yes
+    dcerpc:
+      enabled: yes
+    nfs:
+      enabled: yes
+    dhcp:
+      enabled: yes
+    ntp:
+      enabled: yes
+    rdp:
+      enabled: yes
+    sip:
+      enabled: yes
+    snmp:
+      enabled: yes
+    krb5:
+      enabled: yes
+    mqtt:
+      enabled: yes
+
+# Lua rules are off by default: plaintext_creds.lua needs this
+security:
+  lua:
+    allow-rules: true
+
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: yes
+    - file:
+        enabled: yes
+        level: info
+        filename: suricata.log
