@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}SOC-In-a-Box{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%231b2430%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z%22/><path d=%22M9 12l2 2 4-4%22/></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body data-page="{% block page %}alerts{% endblock %}">
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <span class="brand">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+      SOC-In-a-Box
+    </span>
+    <nav aria-label="Main">
+      <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}aria-current="page"{% endif %}>Alerts</a>
+      <a href="{{ url_for('devices') }}" {% if request.endpoint == 'devices' %}aria-current="page"{% endif %}>Devices</a>
+      <a href="{{ url_for('setup') }}" {% if request.endpoint == 'setup' %}aria-current="page"{% endif %}>Set up<span class="nav-count" id="setup-count" hidden></span></a>
+    </nav>
+    <span class="tagline"></span>
+    <span class="pill" id="status"><span class="dot"></span><span id="status-text">Connecting…</span></span>
+  </div>
+</header>
+
+{% block main %}{% endblock %}
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
