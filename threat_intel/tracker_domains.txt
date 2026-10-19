@@ -1,1 +1,10 @@
 # Owner: Caleb — Curated ad/tracker domain list for the excessive tracker DNS alert.
+# Common advertising/analytics domains; extend or trim for your household.
+doubleclick.net
+google-analytics.com
+ googletagmanager.com
+facebook.net
+connect.facebook.net
+scorecardresearch.com
+adnxs.com
+app-measurement.com

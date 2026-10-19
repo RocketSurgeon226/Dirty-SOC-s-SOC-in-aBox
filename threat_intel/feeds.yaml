@@ -1,1 +1,5 @@
 # Owner: Caleb — Feed sources and update cadence.
+feeds:
+  urlhaus_domains: https://urlhaus.abuse.ch/downloads/hostfile/
+  urlhaus_suricata: https://urlhaus.abuse.ch/downloads/urlhaus_suricata.rules
+  emerging_threats: https://rules.emergingthreats.net/open/suricata-7.0/emerging.rules.tar.gz
