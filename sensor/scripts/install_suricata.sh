@@ -368,8 +368,9 @@ build_suricata() {
 }
 
 verify_lua () {
+    # Suricata 8 has Lua built in
     if 
-        suricata --build-info | grep -Eqi "Lua support: +yes";
+        suricata --build-info | grep q "HAVE_LUA";
     then
         echo "OK: Lua support is enabled."
     else
