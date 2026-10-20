@@ -4,7 +4,7 @@
 # Owner: Adam — Suricata config: capture interface, af-packet (SPAN) or nfqueue (inline), eve.json output.
 
 # Run modes (script picks one based on startup config)
-#   SPAN:     sudo suricata -c /etc/suricata/suricata.yaml --af-packet=eth1
+#   SPAN:     sudo suricata -c /etc/suricata/suricata.yaml --af-packet=eth0
 #   Inline:   sudo suricata -c /etc/suricata/suricata.yaml -q 0
 
 vars:
@@ -40,9 +40,9 @@ vars:
 default-log-dir: /var/log/suricata
 pid-file: /var/run/suricata.pid
 
-# Capture interfaces for SPAN mode. Change eth1 to USB adapter's real name
+# Capture interfaces for SPAN mode.
 af-packet:
-  - interface: eth1
+  - interface: eth0
     cluster-id: 99
     cluster-type: cluster_flow
     defrag: yes
