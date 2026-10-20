@@ -51,7 +51,7 @@ UNIT
 main() {
     require_root
     local root
-    root="$(cd "$(dirname "$0")/.. && pwd)"
+    root="$(cd "$(dirname "$0")/.." && pwd)"
 
     install_units "$root"
     systemctl enable --now socbox-feeds.timer

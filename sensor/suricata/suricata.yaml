@@ -87,7 +87,7 @@ outputs:
             version: 2
         - dhcp:         # new_device: MAC + assigned IP + hostname
             extended: yes
-        - arp           # new_device: ddevices with static IPs that never use DHCP
+        - arp           # new_device: devices with static IPs that never use DHCP
         - flow
   - stats:
       enabled: yes

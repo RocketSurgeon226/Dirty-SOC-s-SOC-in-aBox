@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Owner: Caleb — Pull Emerging Threats Open + URLhaus rulesets and reload Suricata.
+# Owner: Caleb — Build threat_intel/malicious_domains.txt from the URLhaus hostfile.
 set -euo pipefail
 ROOT="$(cd "${1:-$(dirname "$0")/..}" && pwd)"
 TI="$ROOT/threat_intel"
