@@ -1,0 +1,12 @@
+[Unit]
+Description=SOC-in-a-Box dashboard
+After=socbox-analysis.service
+
+[Service]
+User=dirtysocs
+WorkingDirectory=/opt/soc-in-a-box
+ExecStart=/opt/soc-in-a-box/.venv/bin/python dashboard/app.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

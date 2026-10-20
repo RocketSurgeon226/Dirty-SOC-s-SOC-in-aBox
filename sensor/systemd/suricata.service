@@ -1,0 +1,12 @@
+[Unit]
+Description=Suricata IDS (SOC-in-a-Box, SPAN mode)
+After=socbox-capture@eth1.service
+Requires=socbox-capture@eth1.service
+
+[Service]
+ExecStart=/usr/bin/suricata -c /etc/suricata/suricata.yaml --af-packet=eth1 --pidfile /run/suricata.pid
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
