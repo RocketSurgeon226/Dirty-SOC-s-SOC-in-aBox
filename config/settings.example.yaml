@@ -10,6 +10,10 @@ paths:
   eve_json: /var/log/suricata/eve.json #Suricata alert stream we tail
   database: data/soc_in_a_box.db #SQLite: alert metadata + device inventory
   tracker_domains: threat_intel/tracker_domains.txt
+  #Reputation indicators. update_feeds.sh rebuilds malicious_domains.txt from
+  #URLhaus; the service picks up a new file without a restart.
+  malicious_domains: threat_intel/malicious_domains.txt
+  malicious_ips: threat_intel/malicious_ips.txt
 
 network:
   #Networks we treat as "inside the home". Port scans from outside these

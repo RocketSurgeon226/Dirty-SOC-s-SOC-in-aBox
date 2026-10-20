@@ -38,6 +38,8 @@ class PathSettings:
     eve_json: Path = Path("/var/log/suricata/eve.json")
     database: Path = Path("data/soc_in_a_box.db")
     tracker_domains: Path = Path("threat_intel/tracker_domains.txt")
+    malicious_domains: Path = Path("threat_intel/malicious_domains.txt")  #built by update_feeds.sh
+    malicious_ips: Path = Path("threat_intel/malicious_ips.txt")  #optional; missing file = no IP matches
 
 
 @dataclass

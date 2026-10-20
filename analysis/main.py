@@ -9,13 +9,17 @@ Usage:
 
 Pipeline, one event at a time:
 
-    eve.json -> eve_reader -> categorize ----------\
-                           -> outbound_volume -----+-> Pipeline.handle_alert()
+    eve.json -> eve_reader -> new_device ----------\
+                           -> categorize ----------+
+                           -> reputation ----------+-> Pipeline.handle_alert()
+                           -> tracker_dns ---------+
+                           -> outbound_volume -----/
 
 handle_alert(): redact -> severity -> dedup -> (new) device lookup + card + save
                                            -> (repeat) bump the count on the saved card
 
 Old alerts are purged per settings.retention at startup and every hour.
+The reputation lists are reloaded when update_feeds.sh replaces them.
 """
 
 from __future__ import annotations
@@ -32,7 +36,10 @@ from typing import Any, Iterable, Optional
 from analysis.categorize import categorize
 from analysis.config import ConfigError, Settings, load_settings
 from analysis.dedup import Deduplicator
+from analysis.detectors.new_device import NewDeviceDetector
 from analysis.detectors.outbound_volume import OutboundVolumeDetector
+from analysis.detectors.reputation import ReputationDetector
+from analysis.detectors.tracker_dns import TrackerDNSDetector
 from analysis.eve_reader import follow, read_events
 from analysis.models import Alert
 from analysis.redact import redact_alert
@@ -44,6 +51,7 @@ from analysis.translate.llm import make_reworder
 log = logging.getLogger("analysis")
 
 PURGE_INTERVAL_SECONDS = 3600
+FEED_CHECK_INTERVAL_SECONDS = 60
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -94,6 +102,7 @@ def run(
             break
         count += pipeline.handle_event(event)
         pipeline.purge_if_due()
+        pipeline.reload_feeds_if_changed()
     return count
 
 
@@ -104,14 +113,30 @@ class Pipeline:
         self.settings = settings
         self.db = db
         self.dedup = Deduplicator(settings.dedup.window_minutes)
-        self.outbound = OutboundVolumeDetector(settings.detectors.outbound_volume, settings.network)
+        detectors = settings.detectors
+        self.new_device = NewDeviceDetector(db, settings.network, enabled=detectors.new_device.enabled)
+        self.tracker_dns = TrackerDNSDetector(
+            detectors.tracker_dns, settings.network, db, settings.paths.tracker_domains
+        )
+        self.outbound = OutboundVolumeDetector(detectors.outbound_volume, settings.network)
         self.reword = make_reworder(settings.llm)
         self._next_purge = 0.0
+        self._next_feed_check = 0.0
+        self._feed_mtimes = self._read_feed_mtimes()
+        self.reputation = self._load_reputation()
 
     def handle_event(self, event: dict[str, Any]) -> int:
         """Run one eve.json event through every detector. Returns alerts produced."""
         produced = 0
-        for detect in (self._categorize, self.outbound.process):
+        #new_device first, so alerts from the same event can find the device.
+        detectors = (
+            self.new_device.process,
+            self._categorize,
+            self.reputation.process,
+            self.tracker_dns.process,
+            self.outbound.process,
+        )
+        for detect in detectors:
             try:
                 alert = detect(event)
                 if alert is not None:
@@ -157,8 +182,36 @@ class Pipeline:
         if removed:
             log.info("Deleted %d alert(s) older than %d days", removed, self.settings.retention.days)
 
+    def reload_feeds_if_changed(self) -> None:
+        """Pick up new reputation lists from update_feeds.sh without a restart."""
+        if time.monotonic() < self._next_feed_check:
+            return
+        self._next_feed_check = time.monotonic() + FEED_CHECK_INTERVAL_SECONDS
+        mtimes = self._read_feed_mtimes()
+        if mtimes == self._feed_mtimes:
+            return
+        self._feed_mtimes = mtimes
+        self.reputation = self._load_reputation()
+
+    def _load_reputation(self) -> ReputationDetector:
+        paths = self.settings.paths
+        detector = ReputationDetector(self.settings.network, paths.malicious_ips, paths.malicious_domains)
+        log.info("Loaded %d malicious domain(s), %d IP(s)", len(detector.domains), len(detector.ips))
+        return detector
+
+    def _read_feed_mtimes(self) -> tuple[Optional[float], ...]:
+        paths = self.settings.paths
+        return tuple(_mtime(p) for p in (paths.malicious_domains, paths.malicious_ips))
+
     def _categorize(self, event: dict[str, Any]) -> Optional[Alert]:
         return categorize(event, self.settings.network)
+
+
+def _mtime(path: Path) -> Optional[float]:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return None
 
 
 def _handle_shutdown_signals(stop: Event) -> None:

@@ -9,3 +9,5 @@ tests/pcaps/*.pcap
 .env
 dashboard/device_names.json
 dashboard/acknowledged.json
+threat_intel/malicious_domains.txt
+threat_intel/malicious_ips.txt
