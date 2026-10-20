@@ -44,7 +44,7 @@ and `--eve` override them. Check the connection to the analysis service any time
 | `templates/setup.html` | First-connect flow: name the devices that are new |
 | `templates/base.html` | Shared top bar and navigation |
 | `static/js/app.js` | Draws all three pages and runs the naming form |
-| `static/css/dashboard.css` | Styles. Red/amber/green are used only for severity |
+| `static/css/style.css` | Styles. Red/amber/green are used only for severity |
 | `../tests/test_dashboard.py` | pytest tests (pages, API, naming, "Got it", health) |
 
 ## API

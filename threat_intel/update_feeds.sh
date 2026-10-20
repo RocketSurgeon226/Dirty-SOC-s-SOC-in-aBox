@@ -12,7 +12,7 @@ command -v curl >/dev/null || { echo "curl is required" >&2; exit 1; }
 [[ -s "$FEEDS" ]] || { echo "Missing feed configuration: $FEEDS" >&2; exit 1; }
 
 # Read simple key: URL entries from feeds.yaml without requiring a YAML parser.
-feed_url() { awk -v key="$1" '$1 == key {print $2; exit}' "$FEEDS"; }
+feed_url() { awk -v key="$1:" '$1 == key {print $2; exit}' "$FEEDS"; }
 URLHAUS_DOMAINS="$(feed_url urlhaus_domains)"
 # URLHAUS_RULES="$(feed_url urlhaus_suricata)"
 # EMERGING_URL="$(feed_url emerging_threats)"
@@ -46,9 +46,9 @@ then
   echo "Downloaded content looks like an error page" >&2;
   exit 1
 fi
-awk ' /^[[:space:]]*#/ {next} NF >= {d=tolower($2); if (d !~ /^localhost$/ && d !~ /^[0-9.]+$/ && d !~ /^\[/) print d}' \
+awk ' /^[[:space:]]*#/ {next} NF >= 2 {d=tolower($2); if (d !~ /^localhost$/ && d !~ /^[0-9.]+$/ && d !~ /^\[/) print d}' \
   "$TMP/urlhaus-hosts.txt" | sort -u > "$TMP/malicious_domains.txt"
-[[ -s "$TMP/malicious_domains.txt"]] || { echo "URLhaus domain feed was missing/invalid" >&2; exit 1;}
+[[ -s "$TMP/malicious_domains.txt" ]] || { echo "URLhaus domain feed was missing/invalid" >&2; exit 1;}
 
 # Stage and validate URLhaus rules.
 # fetch "$URLHAUS_RULES" "$TMP/urlhaus.rules"

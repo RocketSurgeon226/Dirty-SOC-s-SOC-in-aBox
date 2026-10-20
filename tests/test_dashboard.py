@@ -89,7 +89,7 @@ def test_pages_render(demo, path, page):
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert 'data-page="%s"' % page in html
-    assert "/static/js/app.js" in html and "/static/css/dashboard.css" in html
+    assert "/static/js/app.js" in html and "/static/css/style.css" in html
 
 
 def test_history_page_renders(demo):
@@ -99,7 +99,7 @@ def test_history_page_renders(demo):
 
 def test_static_files_are_served(demo):
     assert demo.get("/static/js/app.js").status_code == 200
-    assert demo.get("/static/css/dashboard.css").status_code == 200
+    assert demo.get("/static/css/style.css").status_code == 200
 
 
 def test_pages_need_no_internet(demo):

@@ -1,8 +1,8 @@
+#!/usr/bin/env bash
 # Owner: Caleb — Refresh threat intel every hour: suricata-update (ET Open + URLhaus rules,
 # then a live rule reload) and update_feeds.sh (malicious_domains.txt).
 # Usage: sudo ./threat_intel/install_feed_timer.sh
 
-#!/usr/bin/env bash
 set -euo pipefail
 
 require_root() {
@@ -16,7 +16,7 @@ require_root() {
 install_units() {
     local root="$1"
 
-    cat > /etc/systemd/system/socbox-capture@.service <<'EOF'
+    cat > /etc/systemd/system/socbox-feeds.service <<UNIT
 [Unit]
 Description=SOC-in-a-Box threat intel refresh
 Wants=network-online.target
@@ -25,7 +25,7 @@ After=network-online.target
 [Service]
 Type=oneshot
 # Test merged rules with suricata -T, then tells running Suricata to reload them (SIGUSR2)
-ExecStart=/usr/bin/env --reload-command "systemctl kill -s USR2 suricata.service"
+ExecStart=/usr/bin/env suricata-update --reload-command "systemctl kill -s USR2 suricata.service"
 ExecStart=${root}/threat_intel/update_feeds.sh ${root}
 UNIT
 
@@ -40,7 +40,7 @@ RandomizedDelaySec=10min
 Persistent=true
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=timers.target
 UNIT
 
     systemctl daemon-reload
@@ -51,7 +51,7 @@ UNIT
 main() {
     require_root
     local root
-    root="$(cd "$(dirname "$0)/.. && pwd"
+    root="$(cd "$(dirname "$0")/.. && pwd)"
 
     install_units "$root"
     systemctl enable --now socbox-feeds.timer

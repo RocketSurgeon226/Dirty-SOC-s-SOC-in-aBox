@@ -6,7 +6,7 @@
 set -euo pipefail
 
 require_root() {
-    if [ "$(id -u)" -ne 0];
+    if [ "$(id -u)" -ne 0 ];
     then
         echo "Run with sudo: sudo $0" >&2
         exit 1

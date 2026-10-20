@@ -73,6 +73,7 @@ outputs:
       enabled: yes
       filetype: regular
       filename: eve.json
+      ethernet: yes     # adds src_mac/dest_mac; new_device and outbound_volume need these
       types:
         # No payloads, packets or HTTP bodies are logged, so credentials never reach eve.json
         - alert:
@@ -84,6 +85,9 @@ outputs:
             http-body-printable: no
         - dns:
             version: 2
+        - dhcp:         # new_device: MAC + assigned IP + hostname
+            extended: yes
+        - arp           # new_device: ddevices with static IPs that never use DHCP
         - flow
   - stats:
       enabled: yes

@@ -389,7 +389,7 @@ update_rules () {
     # add-source fails if the source already exist, so this only adds it once
     if ! suricata-update list-sources --enabled | grep -q "urlhaus";
     then
-        suricata-update add-surce urlhaus https://urlhaus.abuse.ch/downloads/urlhaus_suricata.rules
+        suricata-update add-source urlhaus https://urlhaus.abuse.ch/downloads/urlhaus_suricata.rules
     fi
 
     suricata-update
