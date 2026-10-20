@@ -319,11 +319,11 @@
 
 
 # Builds Suricata 8.0.7 from source with Lua enabled (needed by plaintext_creds.lua) 
-set -euo pipefall
+set -euo pipefail
 
 require_root() {
     if 
-        [ "$(id -u)" -ne 0]; 
+        [ "$(id -u)" -ne 0 ]; 
     then 
         echo "Run with sudo: sudo $0" >&2
         exit 1
@@ -337,7 +337,7 @@ install_dependencies() {
         curl ca-certificates python3 python3-yaml rustc cargo \
         libpcre2-dev libyaml-dev zlib1g-dev libcap-ng-dev libmagic-dev \
         libjansson-dev libpcap-dev libnet1-dev liblz4-dev \
-        libnetfilter-queue-dev lebnfnetlink-dev libnetfilter-log-dev \
+        libnetfilter-queue-dev libnfnetlink-dev libnetfilter-log-dev \
         liblua5.1-0-dev
 }
 
@@ -369,7 +369,7 @@ build_suricata() {
 
 verify_lua () {
     if 
-        suricata --build-info | grep -Wqi "Lua support: +yes";
+        suricata --build-info | grep -Eqi "Lua support: +yes";
     then
         echo "OK: Lua support is enabled."
     else
@@ -388,7 +388,7 @@ main() {
     build_suricata "8.0.7"
     verify_lua
     update_rules
-    suricata -y
+    suricata -V
 }
 
 main "$@"

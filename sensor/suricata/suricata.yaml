@@ -1,3 +1,6 @@
+%YAML 1.1
+---
+
 # Owner: Adam — Suricata config: capture interface, af-packet (SPAN) or nfqueue (inline), eve.json output.
 
 # Run modes (script picks one based on startup config)
@@ -43,7 +46,7 @@ af-packet:
     cluster-id: 99
     cluster-type: cluster_flow
     defrag: yes
-    use-nmap: yes
+    use-mmap: yes
     tpacket-v3: yes
 
 # Inline mode: packets are accepted by default and queue fails open if it backs up
