@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 PLAINTEXT_CRED_SIDS = {9000001, 9000002}
 
 PLAINTEXT_PREFIX = "SOCBOX Plaintext"
-PORT_SCAN_PREFIXES = ("SOCBOX Port Scan", "SOCBOX Portscan", "ET SCAN")
+PORT_SCAN_PREFIXES = ("SOCBOX Port scan", "SOCBOX Port Scan", "SOCBOX Portscan", "ET SCAN")
 
 #Signature prefixes for ET Open and URLhaus rules that mean "talked to
 #something known bad". Checked with str.startswith, so order doesn't matter.
