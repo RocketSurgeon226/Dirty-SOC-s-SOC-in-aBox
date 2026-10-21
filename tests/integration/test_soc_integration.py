@@ -23,7 +23,7 @@ def scan_event(dest="192.168.1.25", minutes=0):
         "timestamp": (datetime(2026, 10, 16, 18, tzinfo=timezone.utc) + timedelta(minutes=minutes)).isoformat(),
         "event_type": "alert", "src_ip": "203.0.113.10", "dest_ip": dest,
         "src_port": 45000, "dest_port": 22, "proto": "TCP",
-        "alert": {"signature_id": 9000010, "signature": "SOCBOX Port Scan test",
+        "alert": {"signature_id": 9000010, "signature": "SOCBOX Port scan test",
                   "category": "Detection of a Network Scan", "severity": 2},
     }
 
