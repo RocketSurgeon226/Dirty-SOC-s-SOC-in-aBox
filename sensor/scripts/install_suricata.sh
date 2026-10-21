@@ -386,13 +386,6 @@ update_rules () {
     # Adding any source turns off "ET Open by default" behavior, this enables it explicity.
     suricata-update update-sources
     suricata-update enable-source et/open
-
-    # add-source fails if the source already exist, so this only adds it once
-    if ! suricata-update list-sources --enabled | grep -q "urlhaus";
-    then
-        suricata-update add-source urlhaus https://urlhaus.abuse.ch/downloads/urlhaus_suricata.rules
-    fi
-
     suricata-update
 }
 

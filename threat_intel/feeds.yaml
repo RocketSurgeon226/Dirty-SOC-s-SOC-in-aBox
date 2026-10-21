@@ -1,5 +1,9 @@
 # Owner: Caleb — Feed sources and update cadence.
+# Suricata rules: ET Open only, managed by suricata-update (et/open source).
+# update_feeds.sh builds both indicator lists from these feeds:
 feeds:
   urlhaus_domains: https://urlhaus.abuse.ch/downloads/hostfile/
-  urlhaus_suricata: https://urlhaus.abuse.ch/downloads/urlhaus_suricata.rules
-  emerging_threats: https://rules.emergingthreats.net/open/suricata-7.0/emerging.rules.tar.gz
+  # urlhaus_suricata: https://urlhaus.abuse.ch/downloads/urlhaus_suricata.rules
+  # emerging_threats: https://rules.emergingthreats.net/open/suricata-7.0/emerging.rules.tar.gz
+  urlhaus_domains: https://urlhaus.abuse.ch/downloads/hostfile/
+  urlhaus_urls: https://urlhaus.abuse.ch/downloads/text_online/
