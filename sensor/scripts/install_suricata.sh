@@ -370,7 +370,7 @@ build_suricata() {
 verify_lua () {
     # Suricata 8 has Lua built in
     if 
-        suricata --build-info | grep q "HAVE_LUA";
+        suricata --build-info | grep -q "HAVE_LUA";
     then
         echo "OK: Lua support is enabled."
     else
@@ -383,7 +383,8 @@ update_rules () {
     # FIX and UPDATE
     # suricata-update owns every suricata ruleset: ET Open + URLhaus, merged into
     # /var/lib/suricata/rules/suricata.rules (already listed in suricata.yaml).
-    # Adding any source turns off "ET Open by default" behavior, this enables it explicity.
+    # URLhaus is matched in Python by analysis/detectors/reputation.py instead.
+    # enable-source makes ET Open explicit instead of relying on the default.
     suricata-update update-sources
     suricata-update enable-source et/open
     suricata-update

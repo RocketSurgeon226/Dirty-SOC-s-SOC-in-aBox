@@ -23,7 +23,7 @@ network:
     - 192.168.0.0/16
     - 10.0.0.0/8
     - 172.16.0.0/12
-  capture_interface: eth1 #USB Ethernet adapter on the SPAN port
+  capture_interface: eth0 #USB Ethernet adapter on the SPAN port
 
 dedup:
   #Same device + same category within this window is shown as one card.

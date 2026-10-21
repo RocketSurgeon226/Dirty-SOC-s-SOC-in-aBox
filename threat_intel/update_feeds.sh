@@ -12,7 +12,7 @@ command -v curl >/dev/null || { echo "curl is required" >&2; exit 1; }
 [[ -s "$FEEDS" ]] || { echo "Missing feed configuration: $FEEDS" >&2; exit 1; }
 
 # Read simple key: URL entries from feeds.yaml without requiring a YAML parser.
-feed_url() { awk -v key="$1:" '$1 == "  " key {print $2; exit}' "$FEEDS"; }
+feed_url() { awk -v key="$1:" '$1 == key {print $2; exit}' "$FEEDS"; }
 URLHAUS_DOMAINS="$(feed_url urlhaus_domains)"
 URLHAUS_URLS="$(feed_url urlhaus_urls)"
 # EMERGING_URL="$(feed_url emerging_threats)"
