@@ -44,7 +44,6 @@ MALICIOUS_PREFIXES = (
     "ET THREATFOX",
     "ET TROJAN",
     "ET WORM",
-    "URLhaus",
 )
 
 #Suricata classtype descriptions (alert.category) that mean the same thing,
