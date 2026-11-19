@@ -6,6 +6,7 @@ Usage:
     t = template_for(Category.PORT_SCAN)
     t.description  # -> "Someone or something scanned your network from outside."
     t.action       # -> "Make sure your router's software is up to date ..."
+    template_for_alert(alert)  # same, but picks the port-scan wording by direction
 
 Descriptions match the category table in README.md; each action is one thing a
 non-technical homeowner can do right now. No traffic details (IPs, ports,
@@ -16,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from analysis.models import Category
+from analysis.models import Alert, Category
 
 
 @dataclass(frozen=True)
@@ -53,5 +54,33 @@ TEMPLATES: dict[Category, Template] = {
 }
 
 
+#Port scans started by a home device, keyed by the alert's details["direction"].
+#TEMPLATES[PORT_SCAN] stays the "from outside" (inbound) wording; it's also used
+#when direction is unknown, e.g. a Python-built alert.
+SCAN_FROM_HOME_ACTION = (
+    "If no one here is running a network tool on this device, "
+    "disconnect it and run a virus scan."
+)
+PORT_SCAN_BY_DIRECTION: dict[str, Template] = {
+    "internal": Template(
+        description="This device scanned other devices on your network.",
+        action=SCAN_FROM_HOME_ACTION,
+    ),
+    "outbound": Template(
+        description="This device scanned computers out on the internet.",
+        action=SCAN_FROM_HOME_ACTION,
+    ),
+}
+
+
 def template_for(category: Category) -> Template:
     return TEMPLATES[Category(category)]
+
+
+def template_for_alert(alert: Alert) -> Template:
+    """Like template_for, but port scans get wording that matches who scanned whom."""
+    if alert.category == Category.PORT_SCAN:
+        variant = PORT_SCAN_BY_DIRECTION.get((alert.details or {}).get("direction"))
+        if variant is not None:
+            return variant
+    return template_for(alert.category)
