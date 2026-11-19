@@ -5,7 +5,8 @@ Usage:
     from analysis.translate.card_builder import build_card
     card = build_card(alert, device)  # device from the inventory, or None
 
-Description and action come from the category's template. `reword` is the
+Description and action come from the category's template (port scans pick
+the inbound / internal / outbound wording from the alert's direction). `reword` is the
 optional LLM hook (translate/llm.py): it gets the alert and template text and
 returns a new (description, action), or None to keep the template. Any error
 or empty answer also keeps the template, so a card is always produced.
@@ -18,7 +19,7 @@ from typing import Callable, Optional
 
 from analysis.models import UNRECOGNIZED_DEVICE, Alert, AlertCard, Device
 from analysis.severity import severity_for
-from analysis.translate.templates import template_for
+from analysis.translate.templates import template_for_alert
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ Reworder = Callable[[Alert, str, str], Optional[tuple[str, str]]]
 def build_card(
     alert: Alert, device: Optional[Device] = None, reword: Optional[Reworder] = None
 ) -> AlertCard:
-    template = template_for(alert.category)
+    template = template_for_alert(alert)
     description, action = template.description, template.action
     llm_enhanced = False
 

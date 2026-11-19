@@ -29,7 +29,7 @@ Each alert card has four parts: a friendly device name, a severity level, a one-
 |---|---|---|
 | Known-malicious IP/domain contact | High | "This device contacted a known bad server." |
 | Plaintext credential transmission | High | "A device on your network sent a password in an unprotected way." |
-| Port scan | Medium | "Someone or something scanned your network from outside." |
+| Port scan | Medium | "Someone or something scanned your network from outside." (or "This device scanned other devices on your network." when the scanner is a home device) |
 | New or unknown device | Medium | "A new device joined your network; was this you?" |
 | Anomalous outbound volume | Medium | "This device is sending far more data than usual." |
 | Excessive ad/tracker DNS | Low | "This device is sending an unusual amount of data to ad and tracking companies." |
