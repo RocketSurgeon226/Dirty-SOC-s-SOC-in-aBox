@@ -110,3 +110,12 @@ def test_grade_counts_the_last_7_days():
     stale = _Item(Severity.HIGH, "malicious_contact", hours=-24 * 8)
     recent = _Item(Severity.HIGH, "malicious_contact", hours=-24 * 4)
     assert health_score([stale, recent], now=T0).score == 75
+
+
+def test_password_card_names_the_site_from_dns(pipeline):
+    pipeline.handle_event({"event_type": "dns", "dns": {"type": "answer", "rrname": "shop.example",
+                           "answers": [{"rrname": "shop.example", "rrtype": "A", "rdata": "198.51.100.5"}]}})
+    pipeline.handle_alert(Alert(category=Category.PLAINTEXT_CREDENTIALS, source=AlertSource.PYTHON,
+                                src_ip="192.168.1.20", dest_ip="198.51.100.5",
+                                details={"home_ip": "192.168.1.20", "remote_ip": "198.51.100.5"}))
+    assert list_issues(pipeline.db, now=datetime.now(timezone.utc))[0].site == "shop.example"

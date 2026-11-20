@@ -98,11 +98,23 @@ TREND_DAYS = 7
 def get_cards():
     """Open issues (one per device + problem), worst and newest first. Each carries the
     points the grade would win back if it were fixed. Handled ones are on History."""
-    from analysis.health_score import points_for
+    from analysis.health_score import health_score, points_for
     from analysis.issues import list_issues
     db = _db()
     issues = list_issues(db)
-    return [dict(_issue_data(db, i), points=points_for(i, issues)) for i in issues]
+    now_score = health_score(issues).score
+    category_gain = {}  # points for fixing every issue of one kind, for issues that win nothing alone
+    for c in {i.category for i in issues}:
+        same = [i for i in issues if i.category == c]
+        category_gain[c] = (health_score([i for i in issues if i.category != c]).score - now_score, len(same))
+    out = []
+    for i in issues:
+        d = dict(_issue_data(db, i), points=points_for(i, issues))
+        gain, n = category_gain[i.category]
+        if not d["points"] and n > 1 and gain > 0:
+            d["points_all"], d["points_all_count"] = gain, n
+        out.append(d)
+    return out
 
 
 def get_handled_cards():
@@ -310,7 +322,7 @@ def normalize_card(raw, index, now):
 
 # Optional extras from Brady's issues (analysis/issues.py), passed to the page as they are.
 PASSTHROUGH_CARD_KEYS = ("meaning", "first_seen", "last_seen", "device_ip", "vendor", "site",
-                         "direction", "points", "cards", "device_key")
+                         "direction", "points", "points_all", "points_all_count", "cards", "device_key")
 
 
 def normalize_device(raw, index):

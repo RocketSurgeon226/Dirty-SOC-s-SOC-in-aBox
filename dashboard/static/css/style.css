@@ -105,6 +105,8 @@
     background: var(--green-line); margin-right: .35rem; vertical-align: middle; }
   .muted-line { margin: .3rem 0; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
   .privacy h2 { margin-top: 1.4rem; }
+  .cue-serious { color: var(--red-fg); } .cue-maybe { color: var(--amber-fg); } .cue-calm { color: var(--green-fg); }
+  .probe-line { margin: .9rem 0 .6rem; }
   .privacy li { margin-bottom: .3rem; }
   .all-clear { text-align: center; padding: 2rem 1rem; }
   .all-clear .big { font-size: 1.1rem; font-weight: 600; color: var(--green-fg); }

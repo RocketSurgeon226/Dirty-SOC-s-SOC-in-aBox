@@ -208,6 +208,22 @@ function deviceDetails(d) {
   box.appendChild(el("div", "muted", "Its built-in ID: " + d.mac));
   return box;
 }
+// A better icon than the placeholder, guessed from the device's name, maker or own name for itself.
+var ICON_GUESSES = [[/router|gateway|\bap\b|access point|omada|eero|mesh|wi-?fi/i, "router"],
+  [/iphone|android|pixel|galaxy|phone/i, "device-mobile"], [/ipad|tablet|kindle/i, "tablet"],
+  [/\btv\b|roku|chromecast|fire ?stick|apple tv|bravia/i, "device-tv"],
+  [/xbox|playstation|ps[345]\b|nintendo|switch|steam deck/i, "device-gamepad-2"],
+  [/echo|alexa|sonos|homepod|nest (mini|audio)|speaker/i, "speaker"],
+  [/printer|epson|brother|canon|hp ?inc/i, "printer"], [/camera|cam\b|doorbell|ring\b|wyze|arlo/i, "camera"],
+  [/plug|bulb|light|hue|kasa|wemo|tuya|shelly/i, "bulb"],
+  [/\bpc\b|laptop|macbook|desktop|computer|server|proxmox|\bvm\b|container|homelab|\bpi\b|raspberry|intel|dell|lenovo/i, "device-laptop"]];
+function guessIcon(d) {
+  if (d.icon && d.icon !== "device-unknown") return d.icon;
+  var words = [d.named ? d.name : "", d.vendor, d.hostname].join(" ");
+  for (var i = 0; i < ICON_GUESSES.length; i++) if (ICON_GUESSES[i][0].test(words)) return ICON_GUESSES[i][1];
+  return "device-unknown";
+}
+
 function deviceByMac(mac) {
   for (var i = 0; i < state.devices.length; i++) {
     if (state.devices[i].mac === mac) return state.devices[i];
@@ -298,7 +314,8 @@ function alertCard(a, opts) {
   card.appendChild(top);
 
   var dev = el("div", "card-device");
-  dev.appendChild(icon(a.device_icon));
+  var known = a.mac ? deviceByMac(a.mac) : null;
+  dev.appendChild(icon(known ? guessIcon(known) : a.device_icon));
   var who = el("div");
   who.appendChild(el("span", "", a.device_name));
   var clue = deviceClue(a);
@@ -312,7 +329,13 @@ function alertCard(a, opts) {
       ? "We couldn't tell which site it was (its address was " + a.site + ")."
       : "The site or service: " + a.site));
   }
-  if (a.meaning) card.appendChild(el("p", "card-meaning small", a.meaning));
+  if (a.meaning) {
+    var m = el("p", "card-meaning small");
+    var cue = worryCue(a);
+    m.appendChild(el("strong", "cue cue-" + cue[0], cue[1] + ". "));
+    m.appendChild(document.createTextNode(a.meaning));
+    card.appendChild(m);
+  }
 
   // A new-device card carries "Is this yours?" and the naming form instead of an action line.
   var nd = (!opts.handled && a.category === "new_device" && a.mac) ? deviceByMac(a.mac) : null;
@@ -330,7 +353,7 @@ function alertCard(a, opts) {
   } else if (a.action) {
     var act = el("div", "card-action");
     act.appendChild(icon("arrow-right"));
-    act.appendChild(el("span", "", a.action));
+    act.appendChild(el("span", "", tailoredAction(a)));
     card.appendChild(act);
     var steps = helpSteps(a);
     if (steps) {
@@ -354,6 +377,8 @@ function alertCard(a, opts) {
       foot.appendChild(normal);
     }
     if (a.points > 0) foot.appendChild(el("span", "muted small points", "Fixing this adds " + a.points + " points to your grade"));
+    else if (a.points_all > 0) foot.appendChild(el("span", "muted small points",
+      "Fixing all " + a.points_all_count + " alerts like this adds " + a.points_all + " points"));
     card.appendChild(foot);
   }
   return card;
@@ -378,6 +403,29 @@ function deviceClue(a) {
   if (vendor) parts.push("Made by " + vendor);
   if (ip && (!named || !vendor)) parts.push("at " + ip + " on your network");
   return parts.join(" \u00b7 ");
+}
+
+// How worried to be, in two words: [tone, label].
+function worryCue(a) {
+  if (a.severity === "high") return ["serious", "Take this seriously"];
+  if (a.severity === "low") return ["calm", "Probably nothing"];
+  return ["maybe", "Could be nothing"];
+}
+
+// Servers, media boxes, backup drives and cameras send lots of data on purpose,
+// so "disconnect it and run a virus scan" is the wrong first step for them.
+var BUSY_BY_DESIGN = /plex|jellyfin|emby|media|nas\b|synology|qnap|backup|server|proxmox|homelab|camera|doorbell|tv\b|roku|xbox|playstation|nintendo|steam/i;
+function busyByDesign(a) {
+  var dev = a.mac ? deviceByMac(a.mac) : null;
+  var words = [a.device_name, a.vendor, dev && dev.vendor, dev && dev.hostname].join(" ");
+  return BUSY_BY_DESIGN.test(words) || ["device-tv", "camera", "device-gamepad-2"].indexOf(a.device_icon) >= 0;
+}
+function tailoredAction(a) {
+  if (a.category === "outbound_volume" && busyByDesign(a)) {
+    return "Devices like this often send lots of data for streaming, backups or game downloads. " +
+      "If that's what it does, press “This is normal for this device”.";
+  }
+  return a.action;
 }
 
 function helpSteps(a) {
@@ -471,8 +519,7 @@ function namingCard(d) {
   dev.appendChild(icon(d.icon));
   dev.appendChild(el("span", "", d.name));
   card.appendChild(dev);
-  var clue = deviceClue({ mac: d.mac, vendor: d.vendor, device_ip: d.ip, device_name: d.name });
-  if (clue) card.appendChild(el("p", "muted small", clue));
+  if (d.ip) card.appendChild(el("p", "muted small", "at " + d.ip + " on your network"));  // who made it is in the hint below
   card.appendChild(el("p", "card-desc", "A new device joined your network."));
   card.appendChild(el("p", "muted small hint", deviceHint(d)));
   card.appendChild(isThisYours(d));
@@ -544,7 +591,7 @@ function renderSummary(counts) {
 
 function renderAlertsPage() {
   var list = byId("alert-list");
-  var main = [], minor = [];   // minor: "just so you know", folded away so they don't compete
+  var main = [], minor = [], probes = [];   // minor: "just so you know", folded away so they don't compete
   list.textContent = "";
   var hasNameCard = {};
   var counts = { high: 0, medium: 0, low: 0 };
@@ -554,6 +601,7 @@ function renderAlertsPage() {
       if (dev && (dev.named || dev.skipped)) return;   // already handled: that card has done its job
       hasNameCard[a.mac] = true;
     }
+    if (a.category === "port_scan" && (!a.direction || a.direction === "inbound")) { probes.push(a); return; }
     if (a.severity === "low") { minor.push(a); return; }
     counts[a.severity]++;
     main.push(alertCard(a));
@@ -579,6 +627,13 @@ function renderAlertsPage() {
 
   var mb = byId("minor");
   mb.textContent = "";
+  if (probes.length) {   // checks from the internet: one calm line, not a card each
+    var n = probes.reduce(function (t, a) { return t + (a.count || 1); }, 0);
+    var line = el("div", "card quiet probe-line small");
+    line.appendChild(el("strong", "", "Computers outside your home checked your network for a way in " + times(n) + " recently. "));
+    line.appendChild(el("span", "muted", "This happens to almost every home connection. Nothing to do."));
+    mb.appendChild(line);
+  }
   if (minor.length) {
     var fyi = expander("minor", "FYI: " + minor.length + " minor note" + (minor.length === 1 ? "" : "s") +
                        " (nothing you need to do)", "more minor");
@@ -635,7 +690,7 @@ function renderDevicesPage() {
   sorted.forEach(function (d) {
     var row = el("div", "device-row" + (d.named ? "" : " unnamed"));
     var head = el("div", "device-head");
-    head.appendChild(icon(d.icon));
+    head.appendChild(icon(guessIcon(d)));
     head.appendChild(el("span", "dname", d.name));
     head.appendChild(el("span", "spacer"));
     if (d.guessed) head.appendChild(el("span", "muted small", "Our best guess"));
@@ -653,7 +708,7 @@ function renderDevicesPage() {
       row.appendChild(m);
     });
     row.appendChild(deviceDetails(d));
-    row.appendChild(namingFlow(d));
+    row.appendChild(d.named ? namingFlow(d) : isThisYours(d));
     box.appendChild(row);
   });
   byId("no-devices").hidden = state.devices.length > 0;
@@ -702,9 +757,11 @@ function renderSetupPage() {
     head.appendChild(icon(d.icon));
     head.appendChild(el("span", "dname", d.name));
     row.appendChild(head);
-    row.appendChild(el("div", "muted small", deviceHint(d) + " Is this one of yours?"));
+    row.appendChild(el("div", "muted small", deviceHint(d) + (d.ip ? " It's at " + d.ip + " on your network." : "")));
+    var p = presence(d);
+    if (p) row.appendChild(el("div", "small presence", p));
     row.appendChild(deviceDetails(d));
-    row.appendChild(namingFlow(d, { autoOpen: true }));
+    row.appendChild(isThisYours(d));
     box.appendChild(row);
   });
   if (!pending.length) {

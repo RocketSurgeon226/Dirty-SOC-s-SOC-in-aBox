@@ -33,7 +33,7 @@ TEMPLATES: dict[Category, Template] = {
     Category.MALICIOUS_CONTACT: Template(
         description="This device contacted a known bad server.",
         action="Disconnect this device from your network, then run a virus scan and update its software.",
-        meaning="This often means unwanted software is on the device. Take it seriously, even if the device seems fine.",
+        meaning="This often means unwanted software is on the device, even if it seems to work fine.",
     ),
     Category.PLAINTEXT_CREDENTIALS: Template(
         description="A device on your network sent a password without hiding it.",

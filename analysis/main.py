@@ -42,10 +42,11 @@ from analysis.detectors.outbound_volume import OutboundVolumeDetector
 from analysis.detectors.reputation import ReputationDetector
 from analysis.detectors.tracker_dns import TrackerDNSDetector
 from analysis.eve_reader import follow, read_events
-from analysis.models import Alert
+from analysis.models import Alert, Category
 from analysis.redact import redact_alert
 from analysis.severity import assign_severity
 from analysis.storage.db import Database
+from analysis.dns_names import DnsNames
 from analysis.translate.card_builder import build_card
 from analysis.translate.llm import make_reworder
 
@@ -122,6 +123,7 @@ class Pipeline:
         )
         self.outbound = OutboundVolumeDetector(detectors.outbound_volume, settings.network)
         self.reword = make_reworder(settings.llm)
+        self.dns_names = DnsNames()
         self._next_purge = 0.0
         self._next_feed_check = 0.0
         self._feed_mtimes = self._read_feed_mtimes()
@@ -130,6 +132,7 @@ class Pipeline:
     def handle_event(self, event: dict[str, Any]) -> int:
         """Run one eve.json event through every detector. Returns alerts produced."""
         produced = 0
+        self.dns_names.process(event)
         #new_device first, so alerts from the same event can find the device.
         detectors = (
             self.new_device.process,
@@ -151,6 +154,10 @@ class Pipeline:
 
     def handle_alert(self, alert: Alert) -> None:
         redact_alert(alert)  # first, so nothing downstream ever holds a credential
+        if alert.category == Category.PLAINTEXT_CREDENTIALS and not alert.details.get("hostname"):
+            site = self.dns_names.name_for(alert.details.get("remote_ip") or alert.dest_ip)
+            if site:
+                alert.details["hostname"] = site  # so the card can say which site
         assign_severity(alert)
         if self.db.is_muted(alert.device_key, alert.category):
             log.debug("Muted %s for %s", alert.category.value, alert.device_key)

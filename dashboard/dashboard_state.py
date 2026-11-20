@@ -11,6 +11,7 @@ from Suricata's eve.json and the Pi's ARP table, so the dashboard still works.
 Only Python's standard library is used here.
 """
 
+import ipaddress
 import json
 import os
 import re
@@ -47,7 +48,7 @@ TEMPLATES = {
     ),
     "plaintext_credentials": (
         "high",
-        "A device on your network sent a password in an unprotected way.",
+        "A device on your network sent a password without hiding it.",
         "Change that password, and only sign in to sites that show a padlock in the address bar.",
     ),
     "port_scan": (
@@ -89,13 +90,17 @@ def classify(signature):
     return "other"
 
 
+HOME_NETWORKS = [ipaddress.ip_network(n) for n in ("192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12")]
+
+
 def is_home_ip(ip):
-    """Private (home network) address? Matches analysis/config.py's default home_networks."""
-    import ipaddress
+    """Home network address? Same ranges as analysis/config.py's default home_networks
+    (not ipaddress's is_private, which also counts documentation and other reserved ranges)."""
     try:
-        return ipaddress.ip_address(ip).is_private
+        addr = ipaddress.ip_address(ip)
     except (TypeError, ValueError):
         return False
+    return any(addr in net for net in HOME_NETWORKS)
 
 
 def last_activity(path):

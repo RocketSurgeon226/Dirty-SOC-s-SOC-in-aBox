@@ -28,7 +28,7 @@ Each alert card has four parts: a friendly device name, a severity level, a one-
 | Category | Severity | What the homeowner sees |
 |---|---|---|
 | Known-malicious IP/domain contact | High | "This device contacted a known bad server." |
-| Plaintext credential transmission | High | "A device on your network sent a password in an unprotected way." |
+| Plaintext credential transmission | High | "A device on your network sent a password without hiding it." |
 | Port scan from the internet | Low | "Computers outside your home checked your network for a way in." |
 | Port scan by a home device | Medium | "This device scanned other devices on your network." |
 | New or unknown device | Medium | "A new device joined your network; was this you?" |

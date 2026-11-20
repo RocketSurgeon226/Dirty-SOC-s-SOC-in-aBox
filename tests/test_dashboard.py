@@ -297,3 +297,8 @@ def test_unnamed_dot_one_is_labeled_as_the_router(connected):
 def test_privacy_page_renders(demo):
     r = demo.get("/privacy")
     assert r.status_code == 200 and "What this box can and can" in r.get_data(as_text=True)
+
+
+def test_internet_scans_are_not_called_internal_in_basic_alerts():
+    assert state.is_home_ip("192.168.1.5") and not state.is_home_ip("203.0.113.9")
+    assert state.looks_like_router("10.4.20.1") and not state.looks_like_router("8.8.8.1")
