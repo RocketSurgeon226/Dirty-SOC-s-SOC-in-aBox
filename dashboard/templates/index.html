@@ -30,14 +30,17 @@
     </div>
     <details class="more grade-help">
       <summary>How does grading work?</summary>
-      <p>Your network starts with 100 points. Each alert from the last 24 hours takes some away:</p>
+      <p>Your network starts with 100 points. Each open problem from the last 7 days takes a share
+        of the points you have left, once per device, however many times it happened:</p>
       <ul>
-        <li><strong>Act now:</strong> 25 points</li>
-        <li><strong>Worth checking:</strong> 10 points</li>
-        <li><strong>Just so you know:</strong> 3 points</li>
+        <li><strong>Act now:</strong> a quarter (100 becomes 75)</li>
+        <li><strong>Worth checking:</strong> a tenth (100 becomes 90)</li>
+        <li><strong>Just so you know:</strong> a little (100 becomes 97)</li>
       </ul>
-      <p>The points come back when you press “Got it” on an alert, or once it's more than a day old.
-        If you change your mind, find it on the History page and choose “Not fixed yet”.</p>
+      <p>Each kind of problem counts at most twice, so one noisy device can't sink the grade.
+        Each card says how many points fixing it adds back.</p>
+      <p>The points come back when you press “Got it” or “This is normal for this device”, or after a quiet week.
+        If the same problem happens again after “Got it”, it comes back as a new card.</p>
       <p class="grade-scale">
         <span><b class="grade-chip grade-green">A</b> 90 or more</span>
         <span><b class="grade-chip grade-green">B</b> 80 to 89</span>

@@ -30,6 +30,8 @@ objects with a to_dict() method both work, so Brady's AlertCard works as is):
   timestamp     timestamp | time | ts | last_seen  (ISO text, epoch seconds, or datetime)
   id, count     id | alert_id,  count
 DEVICES: dicts or objects with to_dict() (Brady's Device): mac, ip, name/friendly_name.
+ISSUES:  get_cards() returns Brady's issues (analysis/issues.py): one card per device +
+         problem, with meaning, first_seen/last_seen, points, device_ip, vendor and site.
 HEALTH:  {"score": 75, "label": "Fair", "color": "yellow", "trend": [...]} (Brady's health_score), or {"grade": "B+"}.
 """
 
@@ -90,46 +92,69 @@ def start():
 
 
 HISTORY_DAYS = 30  # how far back the History page lists handled ("Got it") cards
+TREND_DAYS = 7
 
 
 def get_cards():
-    """Current alert cards, newest first. Acknowledged ("Got it") cards are left out;
-    they're on the History page (get_handled_cards)."""
+    """Open issues (one per device + problem), worst and newest first. Each carries the
+    points the grade would win back if it were fixed. Handled ones are on History."""
+    from analysis.health_score import health_score, points_for
+    from analysis.issues import list_issues
     db = _db()
-    return [_card_data(db, card) for card in db.list_cards(limit=50, include_acknowledged=False)]
+    issues = list_issues(db)
+    now_score = health_score(issues).score
+    category_gain = {}  # points for fixing every issue of one kind, for issues that win nothing alone
+    for c in {i.category for i in issues}:
+        same = [i for i in issues if i.category == c]
+        category_gain[c] = (health_score([i for i in issues if i.category != c]).score - now_score, len(same))
+    out = []
+    for i in issues:
+        d = dict(_issue_data(db, i), points=points_for(i, issues))
+        gain, n = category_gain[i.category]
+        if not d["points"] and n > 1 and gain > 0:
+            d["points_all"], d["points_all_count"] = gain, n
+        out.append(d)
+    return out
 
 
 def get_handled_cards():
-    """Cards the household pressed "Got it" on in the last HISTORY_DAYS days, newest first."""
-    from datetime import timedelta
-    from analysis.models import utcnow
+    """Issues the household pressed "Got it" on in the last HISTORY_DAYS days, newest first."""
+    from analysis.issues import list_issues
     db = _db()
-    recent = db.list_cards(limit=500, since=utcnow() - timedelta(days=HISTORY_DAYS))
-    return [_card_data(db, card) for card in recent if card.acknowledged]
+    handled = list_issues(db, acknowledged=True)
+    handled.sort(key=lambda i: -i.last_seen.timestamp())
+    return [_issue_data(db, i) for i in handled]
 
 
-def _card_data(db, card):
-    """The card as a dict. The device name is looked up fresh, so a name given in the
+def _issue_data(db, issue):
+    """The issue as a dict. The device is looked up fresh, so a name given in the
     dashboard shows up on cards that were created before the device had one."""
-    data = card.to_dict()
-    alert = db.get_alert(card.alert_id)
-    if alert is not None:
-        device = db.find_device(mac=alert.device_mac,
-                                ip=alert.details.get("home_ip") or alert.src_ip)
-        if device is not None:
-            data["mac"] = device.mac
-            if device.friendly_name:
-                data["device_name"] = device.friendly_name
+    data = issue.to_dict()
+    device = db.find_device(mac=issue.device_mac, ip=issue.device_ip)
+    if device is not None:
+        data["mac"] = device.mac
+        data["vendor"] = device.vendor
+        if device.friendly_name:
+            data["device_name"] = device.friendly_name
+    data["device_key"] = issue.key[0] if not issue.key[0].startswith("card:") else None
     return data
 
 
 def get_devices():
-    """The device inventory, unnamed devices first."""
-    return _db().list_devices()
+    """The device inventory, unnamed devices first, with what the household muted on each."""
+    db = _db()
+    mutes = db.list_mutes()
+    out = []
+    for dev in db.list_devices():
+        d = dev.to_dict()
+        d["muted"] = [m["category"] for m in mutes if m["device_key"] in (dev.mac, dev.ip)]
+        d["mute_keys"] = {m["category"]: m["device_key"] for m in mutes if m["device_key"] in (dev.mac, dev.ip)}
+        out.append(d)
+    return out
 
 
 _health_cache: Dict[str, Any] = {"at": 0.0, "value": None}
-HEALTH_CACHE_SECONDS = 15  # the page refreshes every 5 s; no need to rescan a week of cards each time
+HEALTH_CACHE_SECONDS = 15  # the page refreshes every 5 s; no need to regroup two weeks of cards each time
 
 
 def get_health():
@@ -137,13 +162,16 @@ def get_health():
     if _health_cache["value"] is not None and time.monotonic() - _health_cache["at"] < HEALTH_CACHE_SECONDS:
         return _health_cache["value"]
     from datetime import timedelta
-    from analysis.health_score import health_score, health_trend, label_for
+    from analysis.health_score import WINDOW, health_score, health_trend, label_for
+    from analysis.issues import group_rows
     from analysis.models import utcnow
     now = utcnow()
-    cards = _db().list_cards(limit=10_000, since=now - timedelta(days=7))
-    result = health_score(cards, now=now).to_dict()
+    # The trend's oldest day looks back another WINDOW, so read that far.
+    issues = group_rows(_db().issue_rows(acknowledged=False, since=now - WINDOW - timedelta(days=TREND_DAYS)))
+    result = health_score(issues, now=now).to_dict()
+    result["window_days"] = WINDOW.days
     result["trend"] = [{"date": d.isoformat(), "score": s, "color": label_for(s)[1]}
-                       for d, s in health_trend(cards, days=7, now=now)]
+                       for d, s in health_trend(issues, days=TREND_DAYS, now=now)]
     _health_cache.update(at=time.monotonic(), value=result)
     return result
 
@@ -154,17 +182,39 @@ def on_device_named(mac, name, icon):
 
 
 def acknowledge_card(alert_id):
-    """The household pressed "Got it" on a card. Returns False if there's no such card."""
-    ok = _db().acknowledge(alert_id)
-    _health_cache["value"] = None  # an acknowledged card stops counting against the score
+    """"Got it" on an issue: every card in it. Returns False if there's no such card."""
+    from analysis.issues import set_issue_acknowledged
+    ok = set_issue_acknowledged(_db(), alert_id, True)
+    _health_cache["value"] = None  # a handled issue stops counting against the score
     return ok
 
 
 def unacknowledge_card(alert_id):
-    """The household pressed "Not fixed yet" on a handled card. Returns False if there's no such card."""
-    ok = _db().acknowledge(alert_id, acknowledged=False)
+    """"Not fixed yet" on a handled issue. Returns False if there's no such card."""
+    from analysis.issues import set_issue_acknowledged
+    ok = set_issue_acknowledged(_db(), alert_id, False)
     _health_cache["value"] = None  # it counts against the score again
     return ok
+
+
+def mark_normal(alert_id):
+    """"This is normal for this device": stop this kind of alert for this device, and
+    file the issue as handled. Returns False if there's no such card or no device to mute."""
+    from analysis.issues import issue_device_key, set_issue_acknowledged
+    db = _db()
+    key = issue_device_key(db, alert_id)
+    if key is None:
+        return False
+    db.mute(*key)
+    set_issue_acknowledged(db, alert_id, True)
+    _health_cache["value"] = None
+    return True
+
+
+def unmute(device_key, category):
+    """Undo "This is normal for this device"."""
+    _health_cache["value"] = None
+    return _db().unmute(device_key, category)
 
 
 # =============================================================================
@@ -266,7 +316,13 @@ def normalize_card(raw, index, now):
         "action": str(_first(raw, ("action", "next_step", "recommended_action", "suggestion")) or ""),
         "timestamp": _timestamp(_first(raw, ("timestamp", "time", "ts", "last_seen")), now).isoformat(),
         "acknowledged": bool(raw.get("acknowledged", False)),
+        **{k: raw[k] for k in PASSTHROUGH_CARD_KEYS if raw.get(k) not in (None, "", [])},
     }
+
+
+# Optional extras from Brady's issues (analysis/issues.py), passed to the page as they are.
+PASSTHROUGH_CARD_KEYS = ("meaning", "first_seen", "last_seen", "device_ip", "vendor", "site",
+                         "direction", "points", "points_all", "points_all_count", "cards", "device_key")
 
 
 def normalize_device(raw, index):
@@ -290,6 +346,10 @@ def normalize_device(raw, index):
         "skipped": bool(raw.get("skipped", False)),
         "vendor": str(raw["vendor"]) if raw.get("vendor") else None,
         "hostname": str(raw["hostname"]) if raw.get("hostname") else None,
+        "first_seen": str(raw["first_seen"]) if raw.get("first_seen") else None,
+        "last_seen": str(raw["last_seen"]) if raw.get("last_seen") else None,
+        "muted": [str(c) for c in (raw.get("muted") or [])],
+        "mute_keys": {str(k): str(v) for k, v in (raw.get("mute_keys") or {}).items()},
     }
 
 
@@ -366,6 +426,8 @@ def load_health():
                 h["label"] = str(raw.get("label") or "")
                 h["color"] = _tone(raw.get("color"))
                 h["counts"] = {k: int(raw.get(k) or 0) for k in ("high", "medium", "low")}
+                if raw.get("window_days"):
+                    h["window_days"] = int(raw["window_days"])
                 h["trend"] = [{"date": str(p["date"]), "score": max(0, min(100, int(p["score"]))),
                                "color": _tone(p.get("color"))} for p in (raw.get("trend") or [])]
             out["health"] = h

@@ -219,7 +219,7 @@ def test_cards_devices_and_health_come_from_the_service(connected):
            {a["category"] for a in s["alerts"]} == {"malicious_contact", "new_device"}
     assert s["alerts"][0]["severity"] == "high"
     assert [d["name"] for d in s["devices"]][0] == "Unrecognized device"      # unnamed first
-    assert s["health"]["score"] == 65 and s["health"]["label"] == "Fair"      # 100 - 25 - 10
+    assert s["health"]["score"] == 68 and s["health"]["label"] == "Fair"      # 100 * .75 * .9
     assert len(s["health"]["trend"]) == 7
 
 
@@ -233,7 +233,7 @@ def test_naming_reaches_the_analysis_database(connected):
 
 def test_got_it_acknowledges_and_raises_the_score(connected):
     client, db, ids = connected
-    assert client.get("/api/health").get_json()["score"] == 65
+    assert client.get("/api/health").get_json()["score"] == 68
     r = client.post("/api/cards/%s/ack" % ids["bad"])
     assert r.status_code == 200 and r.get_json() == {"ok": True}
     s = client.get("/api/state").get_json()
@@ -250,7 +250,7 @@ def test_not_fixed_yet_brings_a_card_back(connected):
     assert r.status_code == 200 and r.get_json() == {"ok": True}
     s = client.get("/api/state").get_json()
     assert ids["bad"] in [a["id"] for a in s["alerts"]] and s["handled"] == []
-    assert s["health"]["score"] == 65
+    assert s["health"]["score"] == 68
     assert client.post("/api/cards/does-not-exist/unack").status_code == 404
 
 
@@ -261,3 +261,44 @@ def test_a_broken_service_falls_back_with_a_message(connected, monkeypatch):
     monkeypatch.setattr(state, "get_neighbors", lambda: [])
     s = client.get("/api/state").get_json()
     assert s["alert_source"] == "suricata" and "ConfigError" in s["analysis"]["error"]
+
+
+def test_this_is_normal_mutes_and_can_be_undone(connected):
+    client, db, ids = connected
+    r = client.post("/api/cards/%s/normal" % ids["new"])
+    assert r.status_code == 200 and r.get_json() == {"ok": True}
+    s = client.get("/api/state").get_json()
+    assert ids["new"] not in [a["id"] for a in s["alerts"]]
+    dev = next(d for d in s["devices"] if d["mac"] == MAC)
+    assert dev["muted"] == ["new_device"]
+    r = client.post("/api/mutes/remove", json={"device_key": dev["mute_keys"]["new_device"], "category": "new_device"})
+    assert r.status_code == 200
+    assert client.post("/api/mutes/remove", json={"device_key": 5}).status_code == 400
+    assert client.post("/api/cards/does-not-exist/normal").status_code == 404
+
+
+def test_cards_carry_meaning_points_and_device_clues(connected):
+    client, db, ids = connected
+    s = client.get("/api/state").get_json()
+    bad = next(a for a in s["alerts"] if a["id"] == ids["bad"])
+    assert bad["meaning"] and bad["points"] == 22 and bad["first_seen"] and bad["device_key"]
+    assert s["health"]["window_days"] == 7
+    assert s["can_mute"] is True and s["stale"] is True   # the test has no eve.json
+
+
+def test_unnamed_dot_one_is_labeled_as_the_router(connected):
+    client, db, ids = connected
+    from analysis.models import Device
+    db.upsert_device(Device(mac="aa:bb:cc:00:00:01", ip="192.168.1.1"))
+    dev = next(d for d in client.get("/api/state").get_json()["devices"] if d["mac"] == "aa:bb:cc:00:00:01")
+    assert dev["name"] == "Your router" and dev["guessed"] and dev["named"]
+
+
+def test_privacy_page_renders(demo):
+    r = demo.get("/privacy")
+    assert r.status_code == 200 and "What this box can and can" in r.get_data(as_text=True)
+
+
+def test_internet_scans_are_not_called_internal_in_basic_alerts():
+    assert state.is_home_ip("192.168.1.5") and not state.is_home_ip("203.0.113.9")
+    assert state.looks_like_router("10.4.20.1") and not state.looks_like_router("8.8.8.1")

@@ -6,13 +6,16 @@ Usage:
     assign_severity(alert)
     alert.severity  # -> Severity.HIGH
 
-Severity comes only from the category (SEVERITY_BY_CATEGORY, kept in sync
-with README.md), so the same kind of problem always gets the same color.
+Severity comes from the category (SEVERITY_BY_CATEGORY, kept in sync with
+README.md), so the same kind of problem always gets the same color. One
+exception: a port scan from the internet is LOW ("Just so you know"), since
+it happens to every connection; a scan started by a home device stays MEDIUM.
 """
 
 from __future__ import annotations
 
 from analysis.models import Alert, Category, Severity
+from analysis.translate.templates import scan_direction
 
 SEVERITY_BY_CATEGORY: dict[Category, Severity] = {
     Category.MALICIOUS_CONTACT: Severity.HIGH,
@@ -30,4 +33,6 @@ def severity_for(category: Category) -> Severity:
 
 def assign_severity(alert: Alert) -> Alert:
     alert.severity = severity_for(alert.category)
+    if alert.category == Category.PORT_SCAN and scan_direction(alert) == "inbound":
+        alert.severity = Severity.LOW
     return alert

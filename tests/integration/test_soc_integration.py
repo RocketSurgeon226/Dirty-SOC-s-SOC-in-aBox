@@ -33,7 +33,7 @@ def test_repeat_scans_are_one_card(pipeline):
     cards = pipeline.db.list_cards()
     assert len(cards) == 1
     assert cards[0].count == 2
-    assert cards[0].severity.value == "medium"
+    assert cards[0].severity.value == "low"  # scans from the internet are "Just so you know"
 
 def test_scans_of_two_home_devices_do_not_merge(pipeline):
     assert pipeline.handle_event(scan_event(dest="192.168.1.25")) == 1
@@ -52,5 +52,5 @@ def test_scan_severity_and_action(pipeline):
     pipeline.handle_event(scan_event())
     card = pipeline.db.list_cards()[0]
     assert card.category == Category.PORT_SCAN
-    assert card.severity.value == "medium"
+    assert card.severity.value == "low"  # inbound; a scan by a home device is medium
     assert card.description and card.action

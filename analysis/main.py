@@ -29,6 +29,7 @@ import logging
 import signal
 import sys
 import time
+from datetime import timedelta
 from pathlib import Path
 from threading import Event
 from typing import Any, Iterable, Optional
@@ -41,10 +42,11 @@ from analysis.detectors.outbound_volume import OutboundVolumeDetector
 from analysis.detectors.reputation import ReputationDetector
 from analysis.detectors.tracker_dns import TrackerDNSDetector
 from analysis.eve_reader import follow, read_events
-from analysis.models import Alert
+from analysis.models import Alert, Category
 from analysis.redact import redact_alert
 from analysis.severity import assign_severity
 from analysis.storage.db import Database
+from analysis.dns_names import DnsNames
 from analysis.translate.card_builder import build_card
 from analysis.translate.llm import make_reworder
 
@@ -52,6 +54,7 @@ log = logging.getLogger("analysis")
 
 PURGE_INTERVAL_SECONDS = 3600
 FEED_CHECK_INTERVAL_SECONDS = 60
+OPEN_ISSUE_GAP = timedelta(days=7)  #a quiet gap longer than this starts a new card
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -120,6 +123,7 @@ class Pipeline:
         )
         self.outbound = OutboundVolumeDetector(detectors.outbound_volume, settings.network)
         self.reword = make_reworder(settings.llm)
+        self.dns_names = DnsNames()
         self._next_purge = 0.0
         self._next_feed_check = 0.0
         self._feed_mtimes = self._read_feed_mtimes()
@@ -128,6 +132,7 @@ class Pipeline:
     def handle_event(self, event: dict[str, Any]) -> int:
         """Run one eve.json event through every detector. Returns alerts produced."""
         produced = 0
+        self.dns_names.process(event)
         #new_device first, so alerts from the same event can find the device.
         detectors = (
             self.new_device.process,
@@ -149,8 +154,27 @@ class Pipeline:
 
     def handle_alert(self, alert: Alert) -> None:
         redact_alert(alert)  # first, so nothing downstream ever holds a credential
+        if alert.category == Category.PLAINTEXT_CREDENTIALS and not alert.details.get("hostname"):
+            site = self.dns_names.name_for(alert.details.get("remote_ip") or alert.dest_ip)
+            if site:
+                alert.details["hostname"] = site  # so the card can say which site
         assign_severity(alert)
+        if self.db.is_muted(alert.device_key, alert.category):
+            log.debug("Muted %s for %s", alert.category.value, alert.device_key)
+            return
+        incoming = alert
         alert, is_new = self.dedup.add(alert)
+        if not is_new and self.db.is_acknowledged(alert.id):
+            #It came back after "Got it": a new card, so it's back in front of the household.
+            alert, is_new = incoming, True
+            self.dedup.reset(alert)
+        elif is_new:
+            #One card per device + problem: fold into the unhandled card if there is one.
+            open_alert = self.db.find_open_alert(alert.category, alert.device_key)
+            if open_alert is not None and alert.timestamp - open_alert.last_seen <= OPEN_ISSUE_GAP:
+                open_alert.merge(alert)
+                self.dedup.reset(open_alert)
+                alert, is_new = open_alert, False
         if not is_new:
             self.db.update_repeat(alert)
             log.debug("Repeat %s for %s (x%d)", alert.category.value, alert.device_key, alert.count)

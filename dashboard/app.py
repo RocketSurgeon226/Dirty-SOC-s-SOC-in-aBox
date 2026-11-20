@@ -12,6 +12,8 @@ Pages:   /  (home)   /devices  (every device, rename)   /history  (handled alert
 API:     GET /api/state (everything)    GET /api/alerts   GET /api/devices   GET /api/health
          POST /api/devices/<mac>/name   POST /api/devices/<mac>/skip
          POST /api/cards/<id>/ack ("Got it")   POST /api/cards/<id>/unack ("Not fixed yet")
+         POST /api/cards/<id>/normal ("This is normal for this device")
+         POST /api/mutes/remove {"device_key", "category"} (undo that, from the Devices page)
 """
 
 import argparse
@@ -57,6 +59,11 @@ def history():
 @app.get("/setup")
 def setup():
     return render_template("setup.html")
+
+
+@app.get("/privacy")
+def privacy():
+    return render_template("privacy.html")
 
 
 # --- Data ---------------------------------------------------------------------
@@ -115,8 +122,35 @@ def api_unacknowledge(alert_id):
     return set_acknowledged(alert_id, False)
 
 
+@app.post("/api/cards/<alert_id>/normal")
+def api_mark_normal(alert_id):
+    """The household said this alert is normal for this device: stop showing it."""
+    if not valid_alert_id(alert_id):
+        return jsonify({"error": "not found"}), 404
+    try:
+        ok = state.mark_normal(alert_id)
+    except Exception as e:
+        print("mark_normal failed: %s" % e)
+        return jsonify({"error": "Couldn't save that"}), 500
+    return jsonify({"ok": bool(ok)}), (200 if ok else 404)
+
+
+@app.post("/api/mutes/remove")
+def api_unmute():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get("device_key"), str) \
+            or not isinstance(data.get("category"), str) or len(data["device_key"]) > 64:
+        return jsonify({"error": "Bad request"}), 400
+    ok = state.unmute(data["device_key"], data["category"])
+    return jsonify({"ok": bool(ok)}), (200 if ok else 404)
+
+
+def valid_alert_id(alert_id):
+    return alert_id.replace("-", "").replace("_", "").replace(":", "").isalnum() and len(alert_id) <= 64
+
+
 def set_acknowledged(alert_id, acknowledged):
-    if not alert_id.replace("-", "").replace("_", "").replace(":", "").isalnum() or len(alert_id) > 64:
+    if not valid_alert_id(alert_id):
         return jsonify({"error": "not found"}), 404
     try:
         ok = state.set_acknowledged(alert_id, acknowledged, app.config["DEMO"], app.config["EVE_PATH"])
