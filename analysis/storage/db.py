@@ -12,6 +12,9 @@ Usage:
     db.upsert_device(device); db.name_device(mac, "Kitchen TV")
     db.find_device(mac=..., ip=...)              # for the card's device name
     db.purge_older_than(settings.retention.days)
+    db.find_open_alert(category, device_key)     # the unhandled card a new alert belongs to
+    db.issue_rows(acknowledged=False, since=...) # cards + their alert, for analysis/issues.py
+    db.mute(device_key, category)                # "This is normal for this device"
 
 One SQLite file: the analysis service writes, the dashboard reads (WAL mode
 allows both at once). Alerts arrive redacted and there's no payload column.
@@ -75,6 +78,13 @@ CREATE TABLE IF NOT EXISTS devices (
     last_seen     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS devices_ip ON devices (ip);
+
+CREATE TABLE IF NOT EXISTS mutes (
+    device_key   TEXT NOT NULL,
+    category     TEXT NOT NULL,
+    created      TEXT NOT NULL,
+    PRIMARY KEY (device_key, category)
+);
 """
 
 _ALERT_COLUMNS = (
@@ -160,6 +170,82 @@ class Database:
         sql += " ORDER BY timestamp DESC LIMIT ?"
         args.append(limit)
         return [_card(row) for row in self._all(sql, args)]
+
+    def is_acknowledged(self, alert_id: str) -> bool:
+        row = self._one("SELECT acknowledged FROM cards WHERE alert_id = ?", (alert_id,))
+        return bool(row and row["acknowledged"])
+
+    def issue_rows(
+        self, acknowledged: Optional[bool] = False, since: Optional[datetime] = None
+    ) -> list[dict[str, Any]]:
+        """Cards joined with their alert (device fields, details, last_seen), newest
+        activity first. acknowledged=None returns both kinds."""
+        sql = (
+            "SELECT c.*, a.device_mac, a.src_ip, a.dest_ip, a.details, a.last_seen "
+            "FROM cards c JOIN alerts a ON a.id = c.alert_id WHERE 1=1"
+        )
+        args: list[Any] = []
+        if acknowledged is not None:
+            sql += " AND c.acknowledged = ?"
+            args.append(int(acknowledged))
+        if since is not None:
+            sql += " AND a.last_seen >= ?"
+            args.append(_ts(since))
+        sql += " ORDER BY a.last_seen DESC"
+        rows = []
+        for row in self._all(sql, args):
+            d = dict(row)
+            d["details"] = json.loads(d["details"] or "{}")
+            rows.append(d)
+        return rows
+
+    def find_open_alert(self, category: Any, device_key: Optional[str]) -> Optional[Alert]:
+        """The most recent alert of this category for this device whose card the
+        household hasn't handled yet, or None."""
+        if not device_key:
+            return None
+        category = getattr(category, "value", category)
+        for row in self.issue_rows(acknowledged=False):
+            if row["category"] == category and _row_device_key(row) == device_key:
+                return self.get_alert(row["alert_id"])
+        return None
+
+    def set_acknowledged_many(self, alert_ids: list[str], acknowledged: bool = True) -> int:
+        with self._lock, self._conn:
+            cur = self._conn.executemany(
+                "UPDATE cards SET acknowledged = ? WHERE alert_id = ?",
+                [(int(acknowledged), i) for i in alert_ids],
+            )
+        return cur.rowcount
+
+    # --- mutes ("This is normal for this device") ---------------------------
+
+    def mute(self, device_key: str, category: Any) -> None:
+        category = getattr(category, "value", category)
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO mutes (device_key, category, created) VALUES (?, ?, ?)",
+                (device_key, category, _ts(utcnow())),
+            )
+
+    def unmute(self, device_key: str, category: Any) -> bool:
+        category = getattr(category, "value", category)
+        with self._lock, self._conn:
+            cur = self._conn.execute(
+                "DELETE FROM mutes WHERE device_key = ? AND category = ?", (device_key, category)
+            )
+        return cur.rowcount > 0
+
+    def is_muted(self, device_key: Optional[str], category: Any) -> bool:
+        if not device_key:
+            return False
+        category = getattr(category, "value", category)
+        return self._one(
+            "SELECT 1 FROM mutes WHERE device_key = ? AND category = ?", (device_key, category)
+        ) is not None
+
+    def list_mutes(self) -> list[dict[str, Any]]:
+        return [dict(r) for r in self._all("SELECT * FROM mutes ORDER BY created")]
 
     def acknowledge(self, alert_id: str, acknowledged: bool = True) -> bool:
         """Mark a card as handled. Returns False if there's no such card."""
@@ -264,6 +350,11 @@ def _ts(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc).isoformat(timespec="microseconds")
+
+
+def _row_device_key(row: dict[str, Any]) -> Optional[str]:
+    """Same rule as Alert.device_key, for a row from issue_rows()."""
+    return row.get("device_mac") or (row.get("details") or {}).get("home_ip") or row.get("src_ip")
 
 
 def _card(row: sqlite3.Row) -> AlertCard:

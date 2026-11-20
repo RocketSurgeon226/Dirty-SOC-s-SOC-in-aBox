@@ -50,6 +50,11 @@ class Deduplicator:
             self._recent[alert.dedup_key] = alert
             return alert, True
 
+    def reset(self, alert: Alert) -> None:
+        """Make `alert` the one later repeats fold into (e.g. a card reopened from the database)."""
+        with self._lock:
+            self._recent[alert.dedup_key] = alert
+
     def __len__(self) -> int:
         return len(self._recent)
 

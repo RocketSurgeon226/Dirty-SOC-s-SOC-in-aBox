@@ -30,6 +30,7 @@
       <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}aria-current="page"{% endif %}>Home</a>
       <a href="{{ url_for('devices') }}" {% if request.endpoint in ('devices', 'setup') %}aria-current="page"{% endif %}>Devices<span class="nav-count" id="setup-count" hidden></span></a>
       <a href="{{ url_for('history') }}" {% if request.endpoint == 'history' %}aria-current="page"{% endif %}>History</a>
+      <a href="{{ url_for('privacy') }}" {% if request.endpoint == 'privacy' %}aria-current="page"{% endif %}>What we see</a>
     </nav>
     <span class="tagline"></span>
     <span class="pill" id="status"><span class="dot"></span><span id="status-text">Connecting…</span></span>

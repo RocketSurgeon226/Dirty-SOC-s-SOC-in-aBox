@@ -32,8 +32,9 @@ DEMO_START = datetime.now(timezone.utc)  # demo alerts keep fixed times, so "Got
 MAX_NAME_LEN = 40
 ALLOWED_ICONS = {
     "device-unknown", "device-tv", "device-gamepad-2", "device-mobile",
-    "device-laptop", "speaker", "router",
+    "device-laptop", "speaker", "router", "printer", "camera", "tablet", "bulb",
 }
+STALE_AFTER = timedelta(minutes=15)  # no new network activity for this long -> "not watching"
 
 # category -> (severity, what happened, next step)   [built-in fallback only]
 # The next steps match analysis/translate/templates.py, so the dashboard's
@@ -50,9 +51,14 @@ TEMPLATES = {
         "Change that password, and only sign in to sites that show a padlock in the address bar.",
     ),
     "port_scan": (
+        "low",
+        "Computers outside your home checked your network for a way in.",
+        "Nothing to do right now. Most home routers turn these away on their own.",
+    ),
+    "port_scan_from_home": (
         "medium",
-        "Someone or something scanned your network from outside.",
-        "Make sure your router's software is up to date and its remote management is turned off.",
+        "This device scanned other devices on your network.",
+        "If no one here is running a network tool on this device, disconnect it and run a virus scan.",
     ),
     "other": (
         "low",
@@ -81,6 +87,23 @@ def classify(signature):
                             "COMPROMISED", "PHISH", "ET DROP")):
         return "malicious_contact"
     return "other"
+
+
+def is_home_ip(ip):
+    """Private (home network) address? Matches analysis/config.py's default home_networks."""
+    import ipaddress
+    try:
+        return ipaddress.ip_address(ip).is_private
+    except (TypeError, ValueError):
+        return False
+
+
+def last_activity(path):
+    """When Suricata last wrote to eve.json (it logs flows and stats all the time), or None."""
+    try:
+        return datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
+    except (OSError, TypeError):
+        return None
 
 
 def read_eve(path, max_lines=3000, max_bytes=4_000_000):
@@ -115,6 +138,8 @@ def builtin_alerts(events, devices, now):
         if ts is None or now - ts > WINDOW:
             continue
         category = classify(e.get("alert", {}).get("signature"))
+        if category == "port_scan" and is_home_ip(e.get("src_ip")):
+            category = "port_scan_from_home"
         dev = by_ip.get(e.get("src_ip")) or by_ip.get(e.get("dest_ip"))
         key = ((dev or {}).get("mac") or "network", category)
         g = groups.setdefault(key, {"count": 0, "latest": ts, "dev": dev, "category": category})
@@ -128,7 +153,8 @@ def builtin_alerts(events, devices, now):
         dev = g["dev"]
         alerts.append({
             "id": "%s-%s" % (mac, category),
-            "category": category,
+            "category": "port_scan" if category == "port_scan_from_home" else category,
+            "direction": "internal" if category == "port_scan_from_home" else None,
             "severity": severity,
             "mac": dev["mac"] if dev else None,
             "device_name": dev["name"] if dev else "Your network",
@@ -231,12 +257,20 @@ def builtin_devices(neighbors):
 
 def add_device_hints(devices):
     """Clues that help a household recognize a device: who made it, and whether it uses
-    a private (randomized) address, as phones and laptops do."""
+    a private (randomized) address, as phones and laptops do. An unnamed device at a
+    network's .1 or .254 address is almost always the router, so it's labeled that way."""
     for d in devices:
         d["vendor"] = d.get("vendor") or vendors.vendor_for(d["mac"])
         d["private_address"] = vendors.is_private(d["mac"])
         d.setdefault("hostname", None)
+        d["guessed"] = False
+        if not d.get("named") and looks_like_router(d.get("ip")):
+            d.update(name="Your router", icon="router", named=True, guessed=True)
     return devices
+
+
+def looks_like_router(ip):
+    return bool(ip) and is_home_ip(ip) and ip.rsplit(".", 1)[-1] in ("1", "254")
 
 
 # Demo data (goes through the same built-in code path as real data)
@@ -307,6 +341,11 @@ def build_state(demo, eve_path):
     eve_ok = True
     if cards_res["status"] == "ok":
         alerts, alert_source = cards_res["cards"], "analysis"
+        by_mac = {d["mac"]: d for d in devices}
+        for a in alerts:  # a guessed router name beats "Unrecognized device" on its cards
+            dev = by_mac.get(a.get("mac") or "")
+            if dev and dev.get("guessed") and a["device_name"].lower().startswith("unrecognized"):
+                a["device_name"], a["device_icon"] = dev["name"], dev["icon"]
         handled_res = bridge.load_handled()
         handled = handled_res["cards"] if handled_res["status"] == "ok" else []
     else:
@@ -335,15 +374,22 @@ def build_state(demo, eve_path):
     if health_res["status"] == "ok":
         health = health_res["health"]
     else:
-        score = max(0, 100 - sum(SEVERITY_PENALTY[a["severity"]] for a in alerts))
-        health = {"score": score, "note": "Based on the last 24 hours"}
+        left = 1.0  # each alert takes its share of what's left, like analysis/health_score.py
+        for a in alerts:
+            left *= 1 - SEVERITY_PENALTY[a["severity"]] / 100
+        score = round(100 * left)
+        health = {"score": score, "window_days": 1}
     if health.get("score") is not None and not health.get("grade"):
         health["grade"] = grade_for(health["score"])  # the dashboard shows a letter grade either way
 
+    activity = now if demo else last_activity(eve_path)
     return {
         "source": "demo" if demo else "pi",
         "alert_source": alert_source,
         "can_acknowledge": True,
+        "can_mute": alert_source == "analysis",
+        "last_activity": activity.isoformat() if activity else None,
+        "stale": activity is None or now - activity > STALE_AFTER,
         "eve_readable": True if demo else eve_ok,
         "analysis": {"status": status, "error": ("; ".join(errors)[:300] or None)},
         "generated_at": now.isoformat(),
@@ -399,6 +445,19 @@ def set_acknowledged(alert_id, acknowledged, demo, eve_path):
         return False
     save_acks(acks)
     return True
+
+
+def mark_normal(alert_id):
+    """"This is normal for this device" (analysis service only)."""
+    if bridge.load_cards()["status"] != "ok":
+        return False
+    return bool(bridge.mark_normal(alert_id))
+
+
+def unmute(device_key, category):
+    if bridge.load_cards()["status"] != "ok":
+        return False
+    return bool(bridge.unmute(device_key, category))
 
 
 def skip_device(mac):

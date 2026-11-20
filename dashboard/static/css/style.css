@@ -2,7 +2,7 @@
 /* SOC-In-a-Box dashboard styles.
    Red/amber/green are reserved ONLY for severity so they keep their meaning. */
    :root {
-    --ink: #1b2430; --ink-soft: #4b5563; --muted: #8a94a3;
+    --ink: #1b2430; --ink-soft: #4b5563; --muted: #5d6877;
     --page: #f3f4f6; --surface: #fff; --border: #e3e6ea;
     --red-bg: #fdecec; --red-fg: #9a2e2e; --red-line: #c94c4c;
     --amber-bg: #fdf3e3; --amber-fg: #8a5a12; --amber-line: #d99a2b;
@@ -17,7 +17,7 @@
   }
   /*Dark mode: chosen with the button in the top bar*/
   :root[data-theme="dark"] {
-    --ink: #e6e9ee; --ink-soft: #b3bcc8; --muted: #8a94a3;
+    --ink: #e6e9ee; --ink-soft: #b3bcc8; --muted: #a7b0bd;
     --page: #0f141a; --surface: #1a212b; --border: #2c3644;
     --red-bg: #3a1d20; --red-fg: #f2a5a5; --red-line: #e06666;
     --amber-bg: #352914; --amber-fg: #f0c27a; --amber-line: #e0a840;
@@ -89,7 +89,23 @@
   .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-soft); }
   .btn-xs { font-size: .72rem; padding: .1rem .5rem; }
   
-  .card-foot { display: flex; justify-content: flex-end; margin-top: .4rem; }
+  .card-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .5rem; margin-top: .4rem; }
+  .card-foot .points { order: -1; margin-right: auto; }
+  .card-meaning { color: var(--ink-soft); margin: -.3rem 0 .7rem; }
+  .card-site { font-weight: 600; margin: -.3rem 0 .6rem; }
+  .card-device .muted { font-weight: 400; }
+  .yours { margin-top: .4rem; }
+  .yours-q { font-weight: 600; margin: 0 0 .4rem; }
+  .yours-info { margin-top: .6rem; font-size: .9rem; }
+  .yours-info p { margin: 0 0 .3rem; }
+  .yours-info ol { margin: 0; padding-left: 1.2rem; }
+  .ongoing > summary { font-weight: 600; margin: .3rem 0 .6rem; }
+  .presence { color: var(--ink-soft); margin: .2rem 0; }
+  .presence.online::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green-line); margin-right: .35rem; vertical-align: middle; }
+  .muted-line { margin: .3rem 0; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .privacy h2 { margin-top: 1.4rem; }
+  .privacy li { margin-bottom: .3rem; }
   .all-clear { text-align: center; padding: 2rem 1rem; }
   .all-clear .big { font-size: 1.1rem; font-weight: 600; color: var(--green-fg); }
   

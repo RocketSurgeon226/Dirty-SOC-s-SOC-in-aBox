@@ -18,8 +18,9 @@ def test_counts_cards_and_repeats(tmp_path, capsys):
     conn = open_read_only(path)
     r = count_cards(conn)
     assert (r["cards"], r["alerts"]) == (2, 3)
-    assert r["by_category"] == [
-        {"category": "port_scan", "severity": "medium", "cards": 2, "alerts": 3}
+    assert r["by_category"] == [  #inbound scans are low, a scan by a home device medium
+        {"category": "port_scan", "severity": "low", "cards": 1, "alerts": 2},
+        {"category": "port_scan", "severity": "medium", "cards": 1, "alerts": 1},
     ]
     assert count_cards(conn, since="2026-11-20")["cards"] == 0
     conn.close()

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}What we see · SOC-In-a-Box{% endblock %}
+{% block page %}privacy{% endblock %}
+{% block main %}
+<!-- What the box watches and what it doesn't, in plain words. Static: no data on this page. -->
+<main class="page-narrow privacy">
+  <h1>What this box can and can't see</h1>
+  <p class="lead">It watches how the devices in your home talk to each other and to the internet,
+    so it can warn you about problems. It isn't built to spy on what anyone does online.</p>
+
+  <h2>What it looks at</h2>
+  <ul>
+    <li>Which devices are on your network, who made them, and when they join or leave.</li>
+    <li>Which websites and services each device connects to (the names, like “example.com”), and how much data it sends.</li>
+    <li>Signs of trouble, like a device contacting a known bad server or a password sent without protection.</li>
+  </ul>
+
+  <h2>What it doesn't keep</h2>
+  <ul>
+    <li>No browsing history: it never sees which pages anyone opens or what they search for.
+      Its network log does list the website names devices look up, and that log is deleted after 7 days.</li>
+    <li>No messages, emails, photos or other contents. Most of today's internet traffic is scrambled, and the box doesn't unscramble it.</li>
+    <li>No passwords. If it spots one sent without protection, it removes it before anything is saved.</li>
+  </ul>
+
+  <h2>Where your information lives</h2>
+  <ul>
+    <li>Everything stays on this box in your home. Nothing is sent to us or anyone else.</li>
+    <li>Alerts are deleted after 30 days, and the network log after 7. The device list is kept so the box can tell when something new joins.</li>
+    <li>“Still need help? Ask AI” is the one exception, and only when you press it: it opens Google with the alert's wording. Your device names are never included.</li>
+  </ul>
+
+  <h2>Who can open this page</h2>
+  <p>Anyone connected to your home Wi-Fi can open this page. There's no password on it yet, so only share your Wi-Fi with people you trust.</p>
+</main>
+{% endblock %}

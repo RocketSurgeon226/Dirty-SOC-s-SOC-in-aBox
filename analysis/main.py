@@ -29,6 +29,7 @@ import logging
 import signal
 import sys
 import time
+from datetime import timedelta
 from pathlib import Path
 from threading import Event
 from typing import Any, Iterable, Optional
@@ -52,6 +53,7 @@ log = logging.getLogger("analysis")
 
 PURGE_INTERVAL_SECONDS = 3600
 FEED_CHECK_INTERVAL_SECONDS = 60
+OPEN_ISSUE_GAP = timedelta(days=7)  #a quiet gap longer than this starts a new card
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -150,7 +152,22 @@ class Pipeline:
     def handle_alert(self, alert: Alert) -> None:
         redact_alert(alert)  # first, so nothing downstream ever holds a credential
         assign_severity(alert)
+        if self.db.is_muted(alert.device_key, alert.category):
+            log.debug("Muted %s for %s", alert.category.value, alert.device_key)
+            return
+        incoming = alert
         alert, is_new = self.dedup.add(alert)
+        if not is_new and self.db.is_acknowledged(alert.id):
+            #It came back after "Got it": a new card, so it's back in front of the household.
+            alert, is_new = incoming, True
+            self.dedup.reset(alert)
+        elif is_new:
+            #One card per device + problem: fold into the unhandled card if there is one.
+            open_alert = self.db.find_open_alert(alert.category, alert.device_key)
+            if open_alert is not None and alert.timestamp - open_alert.last_seen <= OPEN_ISSUE_GAP:
+                open_alert.merge(alert)
+                self.dedup.reset(open_alert)
+                alert, is_new = open_alert, False
         if not is_new:
             self.db.update_repeat(alert)
             log.debug("Repeat %s for %s (x%d)", alert.category.value, alert.device_key, alert.count)
