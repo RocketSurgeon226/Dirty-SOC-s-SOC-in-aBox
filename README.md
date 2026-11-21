@@ -6,7 +6,7 @@
 
 | Name | Role |
 |---|---|
-| Adam | Packet Capture and Sensor Setup |
+| Adam  | (Leader) Packet Capture and Sensor Setup |
 | Caleb | Threat Intelligence and Device Discovery |
 | Brady | Rules Engine/Alert Logic |
 | Aron | Dashboard/Frontend |
